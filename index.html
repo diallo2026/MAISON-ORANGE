@@ -1,0 +1,2285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maison Orange — Gestion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --orange:#FF6600;
+    --orange-dark:#D14E00;
+    --orange-deep:#7A2E00;
+    --ink:#1B1B1F;
+    --ink-soft:#4A4A52;
+    --paper:#F7F5F2;
+    --card:#FFFFFF;
+    --line:#E7E3DD;
+    --ok:#1F8A4C;
+    --warn:#C88A00;
+    --danger:#C22B2B;
+    --locked:#8A8A93;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --disp: 'Space Grotesk', 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#DDD7CE;border-radius:6px;}
+
+  /* ---------- LOGIN ---------- */
+  #login-screen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(255,102,0,.10), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(122,46,0,.10), transparent 45%),
+      var(--ink);
+  }
+  .login-card{
+    width:min(420px,92vw);background:var(--card);border-radius:4px;
+    padding:40px 36px 34px;box-shadow:0 30px 60px rgba(0,0,0,.35);
+    border-top:5px solid var(--orange);
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:8px;background:var(--orange);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--disp);font-weight:700;
+  }
+  .brand-name{font-family:var(--disp);font-weight:700;font-size:19px;letter-spacing:-.01em;}
+  .brand-sub{font-size:12px;color:var(--ink-soft);margin:0 0 26px;letter-spacing:.04em;text-transform:uppercase;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+  .field input, .field select{
+    width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:4px;
+    font-family:var(--mono);font-size:14px;background:#FCFBFA;color:var(--ink);
+  }
+  .field input:focus, .field select:focus{outline:none;border-color:var(--orange);background:#fff;}
+  .btn{
+    appearance:none;border:none;cursor:pointer;font-family:var(--sans);font-weight:600;
+    border-radius:4px;padding:11px 18px;font-size:14px;transition:.15s;
+  }
+  .btn-primary{background:var(--orange);color:#fff;width:100%;margin-top:8px;}
+  .btn-primary:hover{background:var(--orange-dark);}
+  .btn-ghost{background:transparent;color:var(--ink-soft);border:1.5px solid var(--line);}
+  .btn-ghost:hover{border-color:var(--orange);color:var(--orange-dark);}
+  .btn-sm{padding:6px 12px;font-size:12px;}
+  .btn-danger{background:#FBEAEA;color:var(--danger);}
+  .btn-danger:hover{background:var(--danger);color:#fff;}
+  .login-err{background:#FBEAEA;color:var(--danger);font-size:13px;padding:9px 12px;border-radius:4px;margin-bottom:14px;display:none;}
+  .login-hint{margin-top:20px;padding-top:16px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--ink-soft);line-height:1.6;}
+  .login-hint b{color:var(--ink);}
+
+  /* ---------- APP SHELL ---------- */
+  #app{display:none;min-height:100vh;grid-template-columns:230px 1fr;}
+  #app.active{display:grid;}
+  aside{
+    background:var(--ink);color:#fff;padding:20px 14px;display:flex;flex-direction:column;
+    position:sticky;top:0;height:100vh;
+  }
+  .side-brand{display:flex;align-items:center;gap:9px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:14px;}
+  .side-brand .brand-mark{width:28px;height:28px;font-size:13px;}
+  .side-brand-text{font-family:var(--disp);font-weight:700;font-size:14.5px;}
+  .side-role{font-size:10px;color:#FF9E52;text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
+  nav{flex:1;display:flex;flex-direction:column;gap:2px;}
+  nav .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8A8A93;margin:14px 8px 6px;}
+  nav button{
+    all:unset;cursor:pointer;padding:9px 10px;border-radius:5px;font-size:13.5px;color:#D8D8DC;
+    display:flex;align-items:center;gap:9px;transition:.12s;
+  }
+  nav button:hover{background:rgba(255,255,255,.06);color:#fff;}
+  nav button.active{background:var(--orange);color:#fff;font-weight:600;}
+  nav button .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;}
+  .side-user{border-top:1px solid rgba(255,255,255,.1);padding-top:12px;margin-top:8px;}
+  .side-user-name{font-size:13px;font-weight:600;}
+  .side-user-code{font-size:11px;color:#9A9AA2;font-family:var(--mono);}
+  .side-logout{margin-top:10px;width:100%;}
+
+  main{padding:24px 30px 60px;overflow-x:hidden;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:10px;}
+  .topbar h1{font-family:var(--disp);font-size:24px;margin:0 0 4px;letter-spacing:-.01em;}
+  .topbar p{margin:0;color:var(--ink-soft);font-size:13.5px;}
+  .lock-banner{
+    background:#FFF4E9;border:1px solid #FFD8AE;color:var(--orange-deep);
+    padding:10px 14px;border-radius:5px;font-size:12.5px;margin-bottom:18px;display:flex;gap:12px;align-items:center;
+  }
+  .lock-banner .banner-text{flex:1;}
+  .day-arc{flex-shrink:0;display:flex;align-items:center;gap:8px;}
+  .day-arc svg{display:block;}
+  .day-arc-label{font-family:var(--mono);font-size:10.5px;color:var(--orange-deep);white-space:nowrap;}
+  .export-btn{display:inline-flex;align-items:center;gap:5px;}
+
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px;}
+  .stat-card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px;position:relative;overflow:hidden;}
+  .stat-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--orange);}
+  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;}
+  .stat-value{font-family:var(--disp);font-size:28px;font-weight:700;}
+  .stat-sub{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:20px;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:8px;}
+  .panel-head h2{font-family:var(--disp);font-size:16px;margin:0;}
+  .panel-body{padding:16px 18px;}
+  .panel-actions{display:flex;gap:8px;flex-wrap:wrap;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);
+    padding:8px 10px;border-bottom:1.5px solid var(--line);white-space:nowrap;
+  }
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tr:hover td{background:#FBFAF8;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
+  .badge-ok{background:#E4F6EB;color:var(--ok);}
+  .badge-warn{background:#FFF3DC;color:var(--warn);}
+  .badge-danger{background:#FBEAEA;color:var(--danger);}
+  .badge-locked{background:#EDEDEF;color:var(--locked);}
+  .badge-orange{background:#FFE9D9;color:var(--orange-dark);}
+  .mono{font-family:var(--mono);font-size:12.5px;}
+  .muted{color:var(--ink-soft);}
+
+  .empty{padding:36px 20px;text-align:center;color:var(--ink-soft);font-size:13.5px;}
+  .empty b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:4px;font-family:var(--disp);}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(20,15,10,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .modal-bg.active{display:flex;}
+  .modal{background:#fff;border-radius:6px;width:min(480px,100%);max-height:88vh;overflow-y:auto;border-top:4px solid var(--orange);}
+  .modal-head{padding:18px 20px 10px;display:flex;justify-content:space-between;align-items:center;}
+  .modal-head h3{font-family:var(--disp);font-size:17px;margin:0;}
+  .modal-close{cursor:pointer;background:none;border:none;font-size:20px;color:var(--ink-soft);}
+  .modal-body{padding:6px 20px 20px;}
+  .modal-body .field{margin-bottom:14px;}
+  .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:0 20px 20px;}
+
+  .tag-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .perm-chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;background:#F3F1EE;padding:4px 9px;border-radius:20px;}
+  .perm-chip input{margin:0;}
+
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+  .tab-btn{all:unset;cursor:pointer;padding:9px 14px;font-size:13px;color:var(--ink-soft);border-bottom:2px solid transparent;}
+  .tab-btn.active{color:var(--orange-dark);border-bottom-color:var(--orange);font-weight:600;}
+
+  .search-input{padding:8px 10px;border:1.5px solid var(--line);border-radius:4px;font-size:13px;min-width:200px;}
+  .toast{
+    position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:5px;
+    font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:200;display:none;border-left:3px solid var(--orange);
+  }
+  .toast.active{display:block;}
+  select, input[type=text], input[type=number], input[type=date], textarea{
+    font-family:var(--sans);font-size:13.5px;padding:9px 10px;border:1.5px solid var(--line);border-radius:4px;width:100%;background:#FCFBFA;
+  }
+  select:focus, input:focus, textarea:focus{outline:none;border-color:var(--orange);background:#fff;}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .hist-item{border-left:2px solid var(--orange); padding:6px 0 6px 12px; margin-bottom:6px; font-size:12.5px;}
+  .hist-item .h-date{color:var(--ink-soft); font-family:var(--mono); font-size:11px;}
+
+  /* Organigramme */
+  .org-chart{display:flex;flex-direction:column;align-items:center;gap:22px;padding:10px 0 4px;}
+  .org-card{
+    background:#FCFBFA;border:1.5px solid var(--line);border-radius:6px;padding:10px 16px;
+    cursor:pointer;transition:.12s;min-width:150px;text-align:center;
+  }
+  .org-card:hover{border-color:var(--orange);box-shadow:0 4px 10px rgba(255,102,0,.12);transform:translateY(-1px);}
+  .org-root{background:var(--ink);color:#fff;border-color:var(--ink);cursor:default;}
+  .org-root:hover{transform:none;box-shadow:none;}
+  .org-root .org-role{color:#FF9E52;}
+  .org-name{font-family:var(--disp);font-weight:600;font-size:13.5px;}
+  .org-role{font-size:10.5px;color:var(--ink-soft);margin-top:2px;text-transform:uppercase;letter-spacing:.03em;}
+  .org-root .org-name{font-size:15px;}
+  .org-branches{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;padding-top:20px;border-top:2px dashed var(--line);width:100%;position:relative;}
+  .org-node{display:flex;flex-direction:column;align-items:center;gap:14px;position:relative;}
+  .org-node::before{content:"";position:absolute;top:-20px;left:50%;width:1px;height:20px;background:var(--line);}
+  .org-children{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:340px;padding-top:12px;border-top:1px dashed var(--line);}
+  .org-leaf{min-width:110px;padding:8px 10px;}
+  .org-leaf .org-name{font-size:12px;}
+  .org-agent{background:#FFF4E9;}
+  .org-empty{font-size:11.5px;color:var(--ink-soft);font-style:italic;}
+
+  /* Objectifs & graphiques */
+  .chart-wrap{position:relative;height:240px;margin-bottom:4px;}
+  .progress-track{background:#EFEBE4;border-radius:20px;height:10px;overflow:hidden;margin-top:6px;}
+  .progress-fill{height:100%;background:var(--orange);border-radius:20px;transition:width .3s;}
+  .progress-fill.over{background:var(--ok);}
+  .obj-row{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;margin-bottom:4px;}
+  .obj-row b{font-family:var(--disp);}
+  .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .delta-up{color:var(--ok);font-weight:600;}
+  .delta-down{color:var(--danger);font-weight:600;}
+
+  /* Cartes PDV */
+  .pdv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .pdv-card{
+    background:#FCFBFA;border:1.5px solid var(--line);border-radius:6px;padding:14px 16px;cursor:pointer;transition:.12s;
+  }
+  .pdv-card:hover{border-color:var(--orange);box-shadow:0 6px 16px rgba(255,102,0,.12);transform:translateY(-2px);}
+  .pdv-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
+  .pdv-card-name{font-family:var(--disp);font-weight:600;font-size:14.5px;}
+  .pdv-card-lieu{font-size:11.5px;color:var(--ink-soft);margin-bottom:12px;}
+  .pdv-card-stats{display:flex;justify-content:space-between;border-top:1px dashed var(--line);padding-top:10px;}
+  .pdv-card-stats > div{display:flex;flex-direction:column;}
+  .pdv-stat-val{font-family:var(--disp);font-weight:700;font-size:13px;}
+  .pdv-stat-lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-top:1px;}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-mark">MO</div>
+      <div class="brand-name">Maison Orange</div>
+    </div>
+    <p class="brand-sub">Console de gestion de zone</p>
+    <div class="login-err" id="loginErr"></div>
+    <div class="field">
+      <label>Code d'accès</label>
+      <input type="text" id="loginCode" placeholder="ex : RZ-0001" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <input type="text" id="loginPass" placeholder="Mot de passe" autocomplete="off">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Se connecter</button>
+    <div class="login-hint">
+      <b>Démo — comptes créés au premier lancement :</b><br>
+      Responsable de zone : <b>RZ-0001</b> / orange2024<br>
+      (Créez ensuite superviseurs, gérants et agents depuis le tableau de bord.)
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <aside>
+    <div class="side-brand">
+      <div class="brand-mark">MO</div>
+      <div>
+        <div class="side-brand-text">Maison Orange</div>
+        <div class="side-role" id="sideRoleLabel">—</div>
+      </div>
+    </div>
+    <nav id="navMenu"></nav>
+    <div class="side-user">
+      <div class="side-user-name" id="sideUserName">—</div>
+      <div class="side-user-code" id="sideUserCode">—</div>
+      <button class="btn btn-ghost btn-sm side-logout" onclick="logout()">Déconnexion</button>
+    </div>
+  </aside>
+  <main id="mainContent"></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Generic modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Titre</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   MAISON ORANGE — MOTEUR DE DONNEES + LOGIQUE APPLICATIVE
+   Rôles : responsable_zone > superviseur > gerant / agent
+   ========================================================================= */
+
+/* ---------- COMPATIBILITE HORS CLAUDE.AI ----------
+   window.storage n'existe que dans l'environnement Claude.ai. Pour un
+   déploiement autonome (GitHub Pages, Firebase Hosting, serveur classique),
+   on simule la même API avec localStorage afin que l'application fonctionne
+   à l'identique, avec sauvegarde persistante dans le navigateur. */
+if(typeof window.storage === 'undefined'){
+  window.storage = {
+    async get(key, shared){
+      const raw = localStorage.getItem('mo_'+key);
+      if(raw===null){ const err=new Error('Clé introuvable : '+key); throw err; }
+      return { key, value: raw, shared: !!shared };
+    },
+    async set(key, value, shared){
+      localStorage.setItem('mo_'+key, value);
+      return { key, value, shared: !!shared };
+    },
+    async delete(key, shared){
+      localStorage.removeItem('mo_'+key);
+      return { key, deleted:true, shared: !!shared };
+    },
+    async list(prefix, shared){
+      const p = 'mo_'+(prefix||'');
+      const keys = Object.keys(localStorage).filter(k=>k.startsWith(p)).map(k=>k.slice(3));
+      return { keys, prefix, shared: !!shared };
+    }
+  };
+}
+
+const DB_KEY = 'maison_orange_db_v1';
+let DB = null;
+let SESSION = null; // {code, role, id}
+let currentView = 'dashboard';
+
+/* ---------- UTILITAIRES ---------- */
+function uid(prefix){ return prefix + '-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
+function nowISO(){ return new Date().toISOString(); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
+function isToday(iso){ return iso && iso.slice(0,10) === todayStr(); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('active'); setTimeout(()=>t.classList.remove('active'),2600); }
+function genPass(){ const s='ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let p=''; for(let i=0;i<6;i++) p+=s[Math.floor(Math.random()*s.length)]; return p; }
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- OBJECTIFS & GRAPHIQUES (CA / TDR / TDA / LP) ---------- */
+const chartInstances = {};
+function destroyChart(id){ if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; } }
+function drawChart(canvasId, type, labels, data, color, labelText){
+  destroyChart(canvasId);
+  const el = document.getElementById(canvasId);
+  if(!el || typeof Chart==='undefined') return;
+  chartInstances[canvasId] = new Chart(el, {
+    type: type,
+    data: { labels, datasets: [{ label: labelText, data, backgroundColor: type==='bar'? color+'CC' : color+'33', borderColor: color, borderWidth: 2, tension:.3, fill: type==='line', borderRadius: type==='bar'?4:0 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ y:{ beginAtZero:true, grid:{color:'#EEE9E2'} }, x:{ grid:{display:false} } }
+    }
+  });
+}
+function unitFor(type){ return type==='lp' ? 'lignes' : 'GNF'; }
+function typeLabel(type){ return {ca:'CA', tdr:'TDR', tda:'TDA', lp:'LP'}[type]; }
+function monthKey(dateStr){ return (dateStr||todayStr()).slice(0,7); }
+function objKey(type, gerantId, ym){ return `${type}_${gerantId}_${ym}`; }
+function getObjectif(type, gerantId, ym){ return Number(DB.objectifs[objKey(type,gerantId,ym)] || 0); }
+function computeMonthTotal(type, gerantId, ym){
+  return DB[type].filter(e=> e.gerantId===gerantId && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
+}
+function last14DaysSeries(type, gerantId, days){
+  days = days || 14;
+  const labels=[], data=[];
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().slice(0,10);
+    labels.push(d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}));
+    const sum = DB[type].filter(e=> e.date===ds && (!gerantId || e.gerantId===gerantId)).reduce((a,e)=>a+Number(e.montant||0),0);
+    data.push(sum);
+  }
+  return {labels, data};
+}
+function totalsByGerant(type, gerantIds, dateFilterFn){
+  const labels=[], data=[];
+  gerantIds.forEach(gid=>{
+    const g = DB.users.find(u=>u.id===gid);
+    if(!g) return;
+    const sum = DB[type].filter(e=> e.gerantId===gid && (!dateFilterFn || dateFilterFn(e.date))).reduce((a,e)=>a+Number(e.montant||0),0);
+    labels.push(g.prenom+' '+g.nom.charAt(0)+'.');
+    data.push(sum);
+  });
+  return {labels, data};
+}
+function objectifProgressHtml(type, gerantId){
+  const ym = todayStr().slice(0,7);
+  const target = getObjectif(type, gerantId, ym);
+  const actual = computeMonthTotal(type, gerantId, ym);
+  if(!target) return `<div class="muted" style="font-size:12px;">Aucun objectif défini pour ${typeLabel(type)} ce mois-ci.</div>`;
+  const pct = Math.min(100, Math.round((actual/target)*100));
+  return `<div class="obj-row"><span>Objectif ${typeLabel(type)} — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</span><b>${actual.toLocaleString('fr-FR')} / ${target.toLocaleString('fr-FR')} ${unitFor(type)}</b></div>
+  <div class="progress-track"><div class="progress-fill ${pct>=100?'over':''}" style="width:${pct}%;"></div></div>`;
+}
+function openObjectifsModal(type){
+  const scope = SESSION.role==='responsable_zone'
+    ? DB.users.filter(u=>u.role==='gerant')
+    : DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id);
+  const ym = todayStr().slice(0,7);
+  document.getElementById('modalTitle').textContent = `Objectifs ${typeLabel(type)} — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}`;
+  document.getElementById('modalBody').innerHTML = scope.length===0 ? emptyState('Aucun gérant','Créez un gérant avant de définir des objectifs.') :
+    scope.map(g=>`
+      <div class="field">
+        <label>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)} <span class="muted mono" style="text-transform:none;">(${g.code})</span></label>
+        <input type="number" id="obj_${g.id}" value="${getObjectif(type,g.id,ym)||''}" placeholder="Cible en ${unitFor(type)}">
+      </div>`).join('');
+  document.getElementById('modalFoot').innerHTML = scope.length===0 ? `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>` : `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveObjectifs('${type}', ${JSON.stringify(scope.map(g=>g.id))})">Enregistrer</button>`;
+  openModal();
+}
+async function saveObjectifs(type, gerantIds){
+  const ym = todayStr().slice(0,7);
+  gerantIds.forEach(gid=>{
+    const val = document.getElementById('obj_'+gid).value;
+    DB.objectifs[objKey(type,gid,ym)] = val ? Number(val) : 0;
+  });
+  logAction('Objectifs définis', `${typeLabel(type)} — ${ym}`);
+  await saveDB();
+  closeModal(); toast('Objectifs enregistrés'); render();
+}
+
+/* ---------- SIGNATURE : ARC DE CYCLE JOURNALIER ----------
+   Représente visuellement l'heure du jour restante avant le verrouillage
+   de l'accès superviseur à minuit (00:00). Réapparaît partout où la règle
+   "accès limité au jour courant" s'applique. */
+function dayArcSVG(size){
+  size = size || 40;
+  const now = new Date();
+  const pct = (now.getHours()*60+now.getMinutes())/1440; // fraction du jour écoulée
+  const r = size/2 - 4;
+  const c = size/2;
+  const circumference = 2*Math.PI*r;
+  const dash = circumference*pct;
+  const remain = 24 - (now.getHours() + now.getMinutes()/60);
+  const hRestantes = remain.toFixed(1);
+  return `<div class="day-arc">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#F3DFC4" stroke-width="4"/>
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#FF6600" stroke-width="4"
+        stroke-linecap="round" stroke-dasharray="${dash} ${circumference}"
+        transform="rotate(-90 ${c} ${c})"/>
+    </svg>
+    <span class="day-arc-label">${hRestantes} h avant verrouillage</span>
+  </div>`;
+}
+
+/* ---------- EXPORT EXCEL (SheetJS) ---------- */
+function exportToExcel(rows, filename, sheetName){
+  try{
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Feuille1');
+    XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : filename+'.xlsx');
+    toast('Export Excel généré');
+  }catch(e){
+    console.error(e); toast('Erreur lors de l\'export Excel');
+  }
+}
+
+/* ---------- EXPORT PDF (impression stylée) ---------- */
+function exportToPDF(title, subtitle, headers, rows){
+  const win = window.open('', '_blank');
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(title)}</title>
+  <style>
+    body{font-family:'Inter',Arial,sans-serif;color:#1B1B1F;padding:36px;}
+    h1{font-family:'Space Grotesk',sans-serif;font-size:22px;margin:0 0 4px;color:#D14E00;}
+    .sub{color:#555;font-size:12.5px;margin-bottom:22px;}
+    table{width:100%;border-collapse:collapse;font-size:11.5px;}
+    th{background:#FFE9D9;color:#7A2E00;text-align:left;padding:7px 9px;border-bottom:2px solid #FF6600;text-transform:uppercase;font-size:10px;letter-spacing:.04em;}
+    td{padding:7px 9px;border-bottom:1px solid #E7E3DD;}
+    .footer{margin-top:26px;font-size:10.5px;color:#888;}
+  </style></head><body>
+  <h1>${escapeHtml(title)}</h1>
+  <div class="sub">${escapeHtml(subtitle)} — généré le ${fmtDate(nowISO())} par ${escapeHtml(SESSION.prenom+' '+SESSION.nom)}</div>
+  <table><thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+  <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHtml(String(c==null?'—':c))}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table>
+  <div class="footer">Maison Orange — document généré automatiquement, à des fins de justification et de vérification.</div>
+  <scr` + `ipt>window.onload=()=>window.print();</scr` + `ipt>
+  </body></html>`;
+  win.document.write(html);
+  win.document.close();
+}
+
+/* ---------- PERSISTENCE (localStorage-like via storage API, fallback to JS var if unavailable) ---------- */
+async function loadDB(){
+  try{
+    const res = await window.storage.get('db', true);
+    if(res && res.value){ DB = JSON.parse(res.value); if(!DB.objectifs) DB.objectifs={}; return; }
+  }catch(e){ /* not found */ }
+  DB = seedDB();
+  await saveDB();
+}
+async function saveDB(){
+  try{
+    await window.storage.set('db', JSON.stringify(DB), true);
+  }catch(e){ console.error('Erreur de sauvegarde', e); toast('Erreur de sauvegarde des données'); }
+}
+
+/* ---------- SCHEMA INITIAL ---------- */
+function seedDB(){
+  const rzId = uid('RZ');
+  return {
+    users: [
+      { id: rzId, role:'responsable_zone', code:'RZ-0001', pass:'orange2024', nom:'Responsable', prenom:'Zone Centrale',
+        zone:'Zone Centrale', createdAt: nowISO(), createdBy:null, active:true,
+        perms:{modifier:true, supprimer:true} }
+    ],
+    pdvs: [], // points de vente
+    sims: [], // {id, iccid, statut, clientActuelId?, agentId, pdvId, history:[{clientNom,clientTel,agentId,agentNom,dateAttrib,dateRetrait,motifRetrait}]}
+    clients: [], // {id, nom, tel, cni}
+    ca: [], // chiffre d'affaires entries {id, gerantId, date, montant, notes, superviseurId}
+    tdr: [], // {id, gerantId, date, montant, ref, superviseurId}
+    tda: [], // {id, gerantId, date, montant, ref, superviseurId}
+    lp: [],  // lignes de production / lignes prépayées {id, gerantId, date, quantite, superviseurId}
+    activityLog: [], // {id, ts, userId, userNom, role, action, details}
+    reports: [], // generated report snapshots
+    objectifs: {} // { "type_gerantId_YYYY-MM": montantCible }
+  };
+}
+
+/* ---------- LOG D'ACTIVITE ---------- */
+function logAction(action, details){
+  DB.activityLog.push({
+    id: uid('LOG'), ts: nowISO(),
+    userId: SESSION ? SESSION.id : null,
+    userNom: SESSION ? (SESSION.prenom+' '+SESSION.nom) : 'Système',
+    role: SESSION ? SESSION.role : null,
+    action, details: details||''
+  });
+}
+
+/* ---------- ACCES : Verrouillage journalier du superviseur ----------
+   Règle : le superviseur ne voit les activités des gérants (CA/TDR/TDA/LP/mouvements)
+   QUE pour la journée en cours. Dès que la date change, ces données basculent en
+   lecture seule pour le responsable de zone uniquement. */
+function supervisorCanSeeDay(dateStr){
+  return dateStr === todayStr();
+}
+
+/* =========================================================================
+   AUTH
+   ========================================================================= */
+function findUser(code, pass){
+  return DB.users.find(u => u.code.toLowerCase() === code.trim().toLowerCase() && u.pass === pass && u.active);
+}
+
+async function doLogin(){
+  const code = document.getElementById('loginCode').value;
+  const pass = document.getElementById('loginPass').value;
+  const errBox = document.getElementById('loginErr');
+  const u = findUser(code, pass);
+  if(!u){
+    errBox.style.display='block';
+    errBox.textContent = 'Code d\'accès ou mot de passe invalide.';
+    return;
+  }
+  errBox.style.display='none';
+  SESSION = u;
+  u.lastLogin = nowISO();
+  logAction('Connexion', `${u.role} connecté`);
+  await saveDB();
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').classList.add('active');
+  document.getElementById('app').style.display='grid';
+  buildNav();
+  document.getElementById('sideUserName').textContent = u.prenom+' '+u.nom;
+  document.getElementById('sideUserCode').textContent = u.code;
+  document.getElementById('sideRoleLabel').textContent = roleLabel(u.role);
+  navigate(defaultViewForRole(u.role));
+}
+
+function logout(){
+  logAction('Déconnexion','');
+  saveDB();
+  SESSION = null;
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('loginCode').value='';
+  document.getElementById('loginPass').value='';
+}
+
+function roleLabel(r){
+  return {responsable_zone:'Responsable de zone', superviseur:'Superviseur', gerant:'Gérant', agent:'Agent'}[r] || r;
+}
+function defaultViewForRole(r){
+  return 'dashboard';
+}
+
+/* =========================================================================
+   NAVIGATION
+   ========================================================================= */
+function navItems(role){
+  if(role==='responsable_zone'){
+    return [
+      {sec:'Vue d\'ensemble', items:[
+        {id:'dashboard', label:'Tableau de bord'},
+      ]},
+      {sec:'Personnel & accès', items:[
+        {id:'personnel', label:'Superviseurs & agents'},
+        {id:'access', label:'Codes d\'accès'},
+        {id:'permissions', label:'Autorisations'},
+      ]},
+      {sec:'Réseau', items:[
+        {id:'pdv', label:'Points de vente'},
+        {id:'sims', label:'SIM & traçabilité'},
+      ]},
+      {sec:'Activité gérants', items:[
+        {id:'ca', label:'CA'},
+        {id:'tdr', label:'TDR'},
+        {id:'tda', label:'TDA'},
+        {id:'lp', label:'LP'},
+      ]},
+      {sec:'Supervision', items:[
+        {id:'daily', label:'Activité journalière'},
+        {id:'audit', label:'Journal d\'audit'},
+        {id:'reports', label:'Rapports annuel/trimestriel'},
+      ]},
+    ];
+  }
+  if(role==='superviseur'){
+    return [
+      {sec:'Vue d\'ensemble', items:[{id:'dashboard', label:'Tableau de bord'}]},
+      {sec:'Équipe', items:[
+        {id:'gerants', label:'Gérants'},
+        {id:'accessSup', label:'Codes d\'accès équipe'},
+      ]},
+      {sec:'Réseau', items:[
+        {id:'pdv', label:'Points de vente'},
+        {id:'sims', label:'SIM (déploiement)'},
+      ]},
+      {sec:'Activité du jour', items:[
+        {id:'ca', label:'CA du jour'},
+        {id:'tdr', label:'TDR du jour'},
+        {id:'tda', label:'TDA du jour'},
+        {id:'lp', label:'LP du jour'},
+        {id:'daily', label:'Mouvements gérants'},
+      ]},
+    ];
+  }
+  if(role==='gerant'){
+    return [
+      {sec:'Mon activité', items:[
+        {id:'dashboard', label:'Tableau de bord'},
+        {id:'ca', label:'Déclarer CA'},
+        {id:'tdr', label:'Déclarer TDR'},
+        {id:'tda', label:'Déclarer TDA'},
+        {id:'lp', label:'Déclarer LP'},
+      ]},
+    ];
+  }
+  if(role==='agent'){
+    return [
+      {sec:'Mon activité', items:[
+        {id:'dashboard', label:'Tableau de bord'},
+        {id:'sims', label:'Gestion des SIM'},
+      ]},
+    ];
+  }
+  return [];
+}
+
+function buildNav(){
+  const nav = document.getElementById('navMenu');
+  nav.innerHTML = '';
+  const sections = navItems(SESSION.role);
+  sections.forEach(sec=>{
+    const lab = document.createElement('div');
+    lab.className='nav-label'; lab.textContent = sec.sec;
+    nav.appendChild(lab);
+    sec.items.forEach(it=>{
+      const b = document.createElement('button');
+      b.innerHTML = `<span class="dot"></span> ${it.label}`;
+      b.dataset.view = it.id;
+      b.onclick = ()=> navigate(it.id);
+      nav.appendChild(b);
+    });
+  });
+}
+
+function navigate(view){
+  currentView = view;
+  document.querySelectorAll('#navMenu button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.view===view);
+  });
+  render();
+}
+
+/* =========================================================================
+   RENDER ROUTER
+   ========================================================================= */
+function render(){
+  const main = document.getElementById('mainContent');
+  const renderers = {
+    dashboard: renderDashboard,
+    personnel: renderPersonnel,
+    access: renderAccess,
+    permissions: renderPermissions,
+    pdv: renderPDV,
+    sims: renderSims,
+    ca: renderCA,
+    tdr: ()=>renderMoveTable('tdr','TDR — Transferts de recharge','Enregistrez et suivez les opérations TDR des gérants.'),
+    tda: ()=>renderMoveTable('tda','TDA — Transferts d\'argent','Enregistrez et suivez les opérations TDA des gérants.'),
+    lp: ()=>renderMoveTable('lp','LP — Lignes prépayées','Suivi des lignes prépayées activées par les gérants.'),
+    daily: renderDaily,
+    audit: renderAudit,
+    reports: renderReports,
+    gerants: renderGerants,
+    accessSup: renderAccessSup,
+  };
+  main.innerHTML='';
+  (renderers[currentView] || renderDashboard)();
+  attachExportToolbar();
+}
+
+/* =========================================================================
+   DASHBOARD
+   ========================================================================= */
+function renderDashboard(){
+  const main = document.getElementById('mainContent');
+  const role = SESSION.role;
+
+  let statsHtml = '';
+  let lockBanner = '';
+  let extraHtml = '';
+  let afterRender = ()=>{};
+
+  if(role==='responsable_zone'){
+    const superviseurs = DB.users.filter(u=>u.role==='superviseur');
+    const agents = DB.users.filter(u=>u.role==='agent');
+    const gerants = DB.users.filter(u=>u.role==='gerant');
+    const simsActives = DB.sims.filter(s=>s.statut==='attribuee').length;
+    const caTotal = DB.ca.reduce((a,c)=>a+Number(c.montant||0),0);
+    const alerts = simAlerts();
+    statsHtml = cardsRow([
+      ['Superviseurs', superviseurs.length, superviseurs.filter(u=>u.active).length+' actifs'],
+      ['Agents', agents.length, agents.filter(u=>u.active).length+' actifs'],
+      ['Gérants', gerants.length, gerants.filter(u=>u.active).length+' actifs'],
+      ['Points de vente', DB.pdvs.length, DB.pdvs.filter(p=>p.gerantId).length+' avec gérant'],
+      ['SIM attribuées', simsActives, DB.sims.length+' au total'],
+      ['CA cumulé', caTotal.toLocaleString('fr-FR')+' GNF', DB.ca.length+' déclarations'],
+    ]);
+
+    // Top 5 gérants par CA cumulé
+    const ranked = gerants.map(g=>({g, total: DB.ca.filter(c=>c.gerantId===g.id).reduce((a,c)=>a+Number(c.montant||0),0)}))
+      .sort((a,b)=>b.total-a.total).slice(0,5);
+    const trend = last14DaysSeries('ca', null, 30);
+
+    extraHtml = `
+      <div class="grid-2">
+        <div class="panel"><div class="panel-head"><h2>Tendance du CA — 30 derniers jours</h2></div>
+          <div class="panel-body"><div class="chart-wrap"><canvas id="dash_trend"></canvas></div></div></div>
+        <div class="panel"><div class="panel-head"><h2>Top 5 gérants (CA cumulé)</h2></div>
+          <div class="panel-body">
+            ${ranked.length===0 ? emptyState('Aucune donnée','—') : ranked.map((r,i)=>`
+              <div class="obj-row"><span>${i+1}. ${escapeHtml(r.g.prenom)} ${escapeHtml(r.g.nom)}</span><b>${r.total.toLocaleString('fr-FR')} GNF</b></div>
+              <div class="progress-track"><div class="progress-fill" style="width:${ranked[0].total? Math.round(r.total/ranked[0].total*100):0}%;"></div></div>
+            `).join('')}
+          </div></div>
+      </div>
+      ${alerts.length ? `<div class="panel"><div class="panel-head"><h2>⚠ Alertes réseau</h2>
+          <button class="btn btn-ghost btn-sm" onclick="navigate('sims')">Voir les SIM</button></div>
+          <div class="panel-body">
+            <table><thead><tr><th>ICCID</th><th>Type</th><th>Détail</th></tr></thead><tbody>
+            ${alerts.slice(0,5).map(a=>`<tr><td class="mono">${a.sim.iccid}</td><td>${a.type==='dormant'?'<span class="badge badge-warn">Stock dormant</span>':'<span class="badge badge-danger">Rotation anormale</span>'}</td><td class="muted">${escapeHtml(a.detail)}</td></tr>`).join('')}
+            </tbody></table>
+          </div></div>` : ''}
+    `;
+    afterRender = ()=> drawChart('dash_trend','line', trend.labels, trend.data, '#FF6600', 'CA (GNF)');
+  } else if(role==='superviseur'){
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id);
+    const todayCA = DB.ca.filter(c=>isToday(c.date) && c.superviseurId===SESSION.id);
+    const todayMoves = DB.activityLog.filter(l=> isToday(l.ts) && myGerants.some(g=>g.id===l.userId));
+    statsHtml = cardsRow([
+      ['Mes gérants', myGerants.length, myGerants.filter(g=>g.active).length+' actifs'],
+      ["CA aujourd'hui", todayCA.reduce((a,c)=>a+Number(c.montant||0),0).toLocaleString('fr-FR')+' GNF', todayCA.length+' déclarations'],
+      ['SIM déployées', DB.sims.filter(s=>s.deployedBy===SESSION.id).length, ''],
+      ["Mouvements du jour", todayMoves.length, 'visibles jusqu\'à minuit'],
+    ]);
+    lockBanner = `<div class="lock-banner"><span class="banner-text">🔒 Accès limité au jour courant : les données d'hier et avant ne sont visibles que par le responsable de zone (rapports/justificatifs).</span>${dayArcSVG(38)}</div>`;
+  } else if(role==='gerant'){
+    const mine = DB.ca.filter(c=>c.gerantId===SESSION.id && isToday(c.date));
+    statsHtml = cardsRow([
+      ["CA déclaré aujourd'hui", mine.reduce((a,c)=>a+Number(c.montant||0),0).toLocaleString('fr-FR')+' GNF', mine.length+' entrées'],
+      ['TDR aujourd\'hui', DB.tdr.filter(t=>t.gerantId===SESSION.id && isToday(t.date)).length, ''],
+      ['TDA aujourd\'hui', DB.tda.filter(t=>t.gerantId===SESSION.id && isToday(t.date)).length, ''],
+      ['LP aujourd\'hui', DB.lp.filter(t=>t.gerantId===SESSION.id && isToday(t.date)).length, ''],
+    ]);
+  } else if(role==='agent'){
+    const mySims = DB.sims.filter(s=>s.agentId===SESSION.id);
+    statsHtml = cardsRow([
+      ['SIM en charge', mySims.filter(s=>s.statut==='attribuee').length, ''],
+      ['Historique total', mySims.length, 'SIM traitées'],
+    ]);
+  }
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>Tableau de bord</h1><p>Bienvenue, ${escapeHtml(SESSION.prenom)} ${escapeHtml(SESSION.nom)} — ${roleLabel(role)}</p></div>
+    </div>
+    ${lockBanner}
+    ${statsHtml}
+    ${extraHtml}
+    <div class="panel">
+      <div class="panel-head"><h2>Activité récente</h2></div>
+      <div class="panel-body">${recentActivityTable()}</div>
+    </div>
+  `;
+  afterRender();
+}
+
+function cardsRow(items){
+  return `<div class="grid-cards">${items.map(([label,val,sub])=>`
+    <div class="stat-card">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${val}</div>
+      ${sub?`<div class="stat-sub">${sub}</div>`:''}
+    </div>`).join('')}</div>`;
+}
+
+function recentActivityTable(){
+  let logs = [...DB.activityLog].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+  if(SESSION.role==='superviseur'){
+    // superviseur : uniquement logs du jour, de son équipe + lui-même
+    const teamIds = DB.users.filter(u=>u.createdBy===SESSION.id).map(u=>u.id).concat([SESSION.id]);
+    logs = logs.filter(l=> isToday(l.ts) && teamIds.includes(l.userId));
+  } else if(SESSION.role==='gerant' || SESSION.role==='agent'){
+    logs = logs.filter(l=> l.userId===SESSION.id);
+  }
+  logs = logs.slice(0,12);
+  if(logs.length===0) return emptyState('Aucune activité','Les actions effectuées apparaîtront ici.');
+  return `<table><thead><tr><th>Date</th><th>Utilisateur</th><th>Rôle</th><th>Action</th><th>Détail</th></tr></thead><tbody>
+    ${logs.map(l=>`<tr><td class="mono">${fmtDate(l.ts)}</td><td>${escapeHtml(l.userNom)}</td><td><span class="badge badge-orange">${roleLabel(l.role)}</span></td><td>${escapeHtml(l.action)}</td><td class="muted">${escapeHtml(l.details)}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+function emptyState(title,sub){
+  return `<div class="empty"><b>${title}</b>${sub}</div>`;
+}
+
+/* =========================================================================
+   PERSONNEL (Responsable de zone : créer superviseurs + agents)
+   ========================================================================= */
+function renderPersonnel(){
+  const main = document.getElementById('mainContent');
+  const supers = DB.users.filter(u=>u.role==='superviseur');
+  const agents = DB.users.filter(u=>u.role==='agent');
+  const gerants = DB.users.filter(u=>u.role==='gerant');
+  const totalStaff = supers.length+agents.length+gerants.length;
+  const totalActive = [...supers,...agents,...gerants].filter(u=>u.active).length;
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>Superviseurs & agents</h1><p>Créez et gérez les comptes du personnel de votre zone.</p></div>
+      <div class="panel-actions">
+        <button class="btn btn-primary btn-sm" onclick="openCreateUser('superviseur')">+ Superviseur</button>
+        <button class="btn btn-ghost btn-sm" onclick="openCreateUser('agent')">+ Agent</button>
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportPersonnelExcel()">⬇ Excel</button>
+      </div>
+    </div>
+
+    ${cardsRow([
+      ['Effectif total', totalStaff, totalActive+' actifs'],
+      ['Superviseurs', supers.length, ''],
+      ['Gérants', gerants.length, ''],
+      ['Agents', agents.length, ''],
+    ])}
+
+    <div class="tabs">
+      <button class="tab-btn active" data-ptab="liste" onclick="switchPersonnelTab('liste')">Liste</button>
+      <button class="tab-btn" data-ptab="organigramme" onclick="switchPersonnelTab('organigramme')">Organigramme</button>
+    </div>
+    <div id="personnelTabWrap">${personnelListView(supers, agents, gerants)}</div>
+  `;
+}
+
+function exportPersonnelExcel(){
+  const rows = [['Code','Prénom','Nom','Rôle','Téléphone','Statut','Créé par','Créé le','Dernière connexion','Modif.','Suppr.']];
+  DB.users.filter(u=>u.role!=='responsable_zone').forEach(u=>{
+    const creator = DB.users.find(x=>x.id===u.createdBy);
+    rows.push([u.code, u.prenom, u.nom, roleLabel(u.role), u.tel||'', u.active?'Actif':'Suspendu',
+      creator?creator.prenom+' '+creator.nom:'—', fmtDate(u.createdAt), u.lastLogin?fmtDate(u.lastLogin):'Jamais',
+      u.perms.modifier?'Oui':'Non', u.perms.supprimer?'Oui':'Non']);
+  });
+  exportToExcel(rows, 'personnel-maison-orange', 'Personnel');
+}
+function personnelListView(supers, agents, gerants){
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Superviseurs (${supers.length})</h2>
+        <input class="search-input" placeholder="Rechercher…" oninput="filterPersonnelSection(this,'sup')">
+      </div>
+      <div class="panel-body" id="secSup">${userTable(supers,'superviseur')}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Gérants (${gerants.length})</h2>
+        <input class="search-input" placeholder="Rechercher…" oninput="filterPersonnelSection(this,'ger')">
+      </div>
+      <div class="panel-body" id="secGer">${userTable(gerants,'gerant')}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Agents (${agents.length})</h2>
+        <input class="search-input" placeholder="Rechercher…" oninput="filterPersonnelSection(this,'ag')">
+      </div>
+      <div class="panel-body" id="secAg">${userTable(agents,'agent')}</div>
+    </div>
+  `;
+}
+
+function filterPersonnelSection(input, kind){
+  const q = input.value.toLowerCase();
+  const map = {sup:['superviseur','secSup'], ger:['gerant','secGer'], ag:['agent','secAg']};
+  const [role, wrapId] = map[kind];
+  const list = DB.users.filter(u=>u.role===role && ((u.prenom+' '+u.nom+' '+u.code).toLowerCase().includes(q)));
+  document.getElementById(wrapId).innerHTML = userTable(list, role);
+}
+
+function switchPersonnelTab(mode){
+  document.querySelectorAll('[data-ptab]').forEach(b=>b.classList.toggle('active', b.dataset.ptab===mode));
+  const supers = DB.users.filter(u=>u.role==='superviseur');
+  const agents = DB.users.filter(u=>u.role==='agent');
+  const gerants = DB.users.filter(u=>u.role==='gerant');
+  document.getElementById('personnelTabWrap').innerHTML = mode==='liste'
+    ? personnelListView(supers, agents, gerants)
+    : organigrammeView();
+}
+
+/* ---------- ORGANIGRAMME : RZ > Superviseur > Gérants / Agents ---------- */
+function organigrammeView(){
+  const rz = DB.users.find(u=>u.role==='responsable_zone');
+  const supers = DB.users.filter(u=>u.role==='superviseur');
+  const orphanAgents = DB.users.filter(u=>u.role==='agent' && u.createdBy===rz.id);
+
+  const branch = (sup)=>{
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===sup.id);
+    const myAgents = DB.users.filter(u=>u.role==='agent' && u.createdBy===sup.id);
+    return `<div class="org-node org-sup">
+      <div class="org-card" onclick="openUserProfile('${sup.id}')">
+        <div class="org-name">${escapeHtml(sup.prenom)} ${escapeHtml(sup.nom)}</div>
+        <div class="org-role">Superviseur — ${sup.code}</div>
+        ${!sup.active?'<span class="badge badge-danger">Suspendu</span>':''}
+      </div>
+      <div class="org-children">
+        ${myGerants.map(g=>`<div class="org-card org-leaf" onclick="openUserProfile('${g.id}')">
+          <div class="org-name">${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</div>
+          <div class="org-role">Gérant — ${g.code}</div>
+        </div>`).join('')}
+        ${myAgents.map(a=>`<div class="org-card org-leaf org-agent" onclick="openUserProfile('${a.id}')">
+          <div class="org-name">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</div>
+          <div class="org-role">Agent — ${a.code}</div>
+        </div>`).join('')}
+        ${(myGerants.length+myAgents.length)===0?'<div class="org-empty">Aucune équipe créée</div>':''}
+      </div>
+    </div>`;
+  };
+
+  return `
+    <div class="panel"><div class="panel-body">
+      <div class="org-chart">
+        <div class="org-card org-root">
+          <div class="org-name">${escapeHtml(rz.prenom)} ${escapeHtml(rz.nom)}</div>
+          <div class="org-role">Responsable de zone — ${rz.code}</div>
+        </div>
+        <div class="org-branches">
+          ${supers.map(branch).join('')}
+          ${orphanAgents.length ? `<div class="org-node org-sup">
+            <div class="org-card"><div class="org-name">Agents rattachés directement</div><div class="org-role">${orphanAgents.length} agent(s)</div></div>
+            <div class="org-children">${orphanAgents.map(a=>`<div class="org-card org-leaf org-agent" onclick="openUserProfile('${a.id}')">
+              <div class="org-name">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</div><div class="org-role">Agent — ${a.code}</div>
+            </div>`).join('')}</div>
+          </div>` : ''}
+          ${supers.length===0 && orphanAgents.length===0 ? '<div class="org-empty">Aucun superviseur créé pour le moment.</div>' : ''}
+        </div>
+      </div>
+    </div></div>
+  `;
+}
+
+/* ---------- FICHE DETAILLEE D'UN MEMBRE DU PERSONNEL ---------- */
+function openUserProfile(id){
+  const u = DB.users.find(x=>x.id===id);
+  if(!u) return;
+  const creator = DB.users.find(x=>x.id===u.createdBy);
+  const teamCount = DB.users.filter(x=>x.createdBy===u.id).length;
+  const monthLogs = DB.activityLog.filter(l=> l.userId===u.id && l.ts.slice(0,7)===todayStr().slice(0,7));
+  const permsHist = u.permsHistory || [];
+
+  document.getElementById('modalTitle').textContent = `${u.prenom} ${u.nom}`;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid-cards" style="margin-bottom:14px;">
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Rôle</div><div class="stat-value" style="font-size:16px;">${roleLabel(u.role)}</div></div>
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Statut</div><div class="stat-value" style="font-size:16px;">${u.active?'Actif':'Suspendu'}</div></div>
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Actions (ce mois)</div><div class="stat-value" style="font-size:20px;">${monthLogs.length}</div></div>
+      ${teamCount ? `<div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Équipe créée</div><div class="stat-value" style="font-size:20px;">${teamCount}</div></div>` : ''}
+    </div>
+    <table style="margin-bottom:14px;">
+      <tr><td class="muted" style="width:40%;">Code d'accès</td><td class="mono">${u.code}</td></tr>
+      <tr><td class="muted">Téléphone</td><td>${escapeHtml(u.tel||'—')}</td></tr>
+      <tr><td class="muted">Créé par</td><td>${creator? creator.prenom+' '+creator.nom : '—'}</td></tr>
+      <tr><td class="muted">Créé le</td><td class="mono">${fmtDate(u.createdAt)}</td></tr>
+      <tr><td class="muted">Dernière connexion</td><td class="mono">${u.lastLogin? fmtDate(u.lastLogin) : 'Jamais connecté'}</td></tr>
+      <tr><td class="muted">Permissions actuelles</td><td>
+        <span class="badge ${u.perms.modifier?'badge-ok':'badge-locked'}">Modif.</span>
+        <span class="badge ${u.perms.supprimer?'badge-ok':'badge-locked'}">Suppr.</span>
+      </td></tr>
+    </table>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">Historique des autorisations</div>
+    ${permsHist.length ? permsHist.slice().reverse().map(h=>`
+      <div class="hist-item">
+        <div class="h-date">${fmtDate(h.ts)} — par ${escapeHtml(h.by)}</div>
+        <div>Modification : ${h.before.modifier?'✓':'✗'} → ${h.after.modifier?'✓':'✗'} · Suppression : ${h.before.supprimer?'✓':'✗'} → ${h.after.supprimer?'✓':'✗'}</div>
+      </div>`).join('') : '<div class="muted" style="font-size:12.5px;">Aucun changement d\'autorisation enregistré.</div>'}
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>
+    <button class="btn btn-primary btn-sm" onclick="closeModal();openEditUser('${u.id}')">Modifier</button>
+  `;
+  openModal();
+}
+
+function userTable(list, role){
+  if(list.length===0) return emptyState('Aucun compte', `Créez un ${role==='superviseur'?'superviseur':'agent'} pour commencer.`);
+  return `<table><thead><tr><th>Nom</th><th>Code</th><th>Créé par</th><th>Statut</th><th>Permissions</th><th>Actions</th></tr></thead><tbody>
+  ${list.map(u=>{
+    const creator = DB.users.find(x=>x.id===u.createdBy);
+    return `<tr>
+      <td>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</td>
+      <td class="mono">${u.code}</td>
+      <td class="muted">${creator? (creator.prenom+' '+creator.nom) : '—'}</td>
+      <td>${u.active? '<span class="badge badge-ok">Actif</span>' : '<span class="badge badge-danger">Suspendu</span>'}</td>
+      <td>
+        <span class="badge ${u.perms.modifier?'badge-ok':'badge-locked'}">Modif.</span>
+        <span class="badge ${u.perms.supprimer?'badge-ok':'badge-locked'}">Suppr.</span>
+      </td>
+      <td class="tag-row">
+        <button class="btn btn-ghost btn-sm" onclick="openUserProfile('${u.id}')">Fiche</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditUser('${u.id}')">Modifier</button>
+        <button class="btn btn-ghost btn-sm" onclick="openPermUser('${u.id}')">Accès</button>
+        <button class="btn ${u.active?'btn-danger':'btn-primary'} btn-sm" onclick="toggleUserActive('${u.id}')">${u.active?'Suspendre':'Réactiver'}</button>
+      </td>
+    </tr>`;
+  }).join('')}
+  </tbody></table>`;
+}
+
+function openCreateUser(role, presetSupervisor){
+  const code = role==='superviseur' ? nextCode('SP') : (role==='agent'?nextCode('AG'): role==='gerant'?nextCode('GE'):'');
+  const pass = genPass();
+  const supervisorOptions = role==='gerant' ? DB.users.filter(u=>u.role==='superviseur' && u.active) : [];
+  document.getElementById('modalTitle').textContent = `Créer un ${roleLabel(role).toLowerCase()}`;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid-2">
+      <div class="field"><label>Prénom</label><input type="text" id="nu_prenom"></div>
+      <div class="field"><label>Nom</label><input type="text" id="nu_nom"></div>
+    </div>
+    <div class="field"><label>Téléphone</label><input type="text" id="nu_tel"></div>
+    ${role==='gerant' ? `<div class="field"><label>Point de vente</label>
+      <select id="nu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
+    <div class="grid-2">
+      <div class="field"><label>Code d'accès (auto)</label><input type="text" id="nu_code" value="${code}" class="mono"></div>
+      <div class="field"><label>Mot de passe (auto)</label><input type="text" id="nu_pass" value="${pass}" class="mono"></div>
+    </div>
+    <div class="field">
+      <label>Permissions initiales</label>
+      <div class="tag-row">
+        <label class="perm-chip"><input type="checkbox" id="nu_modif" checked> Modification</label>
+        <label class="perm-chip"><input type="checkbox" id="nu_suppr"> Suppression</label>
+      </div>
+    </div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveNewUser('${role}')">Créer le compte</button>
+  `;
+  openModal();
+}
+
+function nextCode(prefix){
+  const existing = DB.users.filter(u=>u.code.startsWith(prefix+'-')).map(u=>parseInt(u.code.split('-')[1])||0);
+  const n = (existing.length? Math.max(...existing):0)+1;
+  return prefix+'-'+String(n).padStart(4,'0');
+}
+
+async function saveNewUser(role){
+  const prenom = document.getElementById('nu_prenom').value.trim();
+  const nom = document.getElementById('nu_nom').value.trim();
+  const tel = document.getElementById('nu_tel').value.trim();
+  const code = document.getElementById('nu_code').value.trim();
+  const pass = document.getElementById('nu_pass').value.trim();
+  const modif = document.getElementById('nu_modif').checked;
+  const suppr = document.getElementById('nu_suppr').checked;
+  const pdvId = role==='gerant' ? document.getElementById('nu_pdv')?.value : null;
+
+  if(!prenom || !nom || !code || !pass){ toast('Veuillez remplir tous les champs obligatoires'); return; }
+  if(DB.users.some(u=>u.code.toLowerCase()===code.toLowerCase())){ toast('Ce code existe déjà'); return; }
+
+  const newUser = {
+    id: uid(role.substring(0,2).toUpperCase()),
+    role, code, pass, nom, prenom, tel,
+    pdvId: pdvId || null,
+    createdAt: nowISO(), createdBy: SESSION.id, active:true,
+    perms:{modifier:modif, supprimer:suppr}
+  };
+  DB.users.push(newUser);
+  logAction('Création de compte', `${roleLabel(role)} ${prenom} ${nom} (${code}) créé`);
+  await saveDB();
+  closeModal();
+  toast(`Compte créé : ${code} / ${pass}`);
+  render();
+}
+
+function openEditUser(id){
+  const u = DB.users.find(x=>x.id===id);
+  if(!u) return;
+  document.getElementById('modalTitle').textContent = 'Modifier le compte';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid-2">
+      <div class="field"><label>Prénom</label><input type="text" id="eu_prenom" value="${escapeHtml(u.prenom)}"></div>
+      <div class="field"><label>Nom</label><input type="text" id="eu_nom" value="${escapeHtml(u.nom)}"></div>
+    </div>
+    <div class="field"><label>Téléphone</label><input type="text" id="eu_tel" value="${escapeHtml(u.tel||'')}"></div>
+    <div class="grid-2">
+      <div class="field"><label>Code d'accès</label><input type="text" id="eu_code" value="${u.code}" class="mono"></div>
+      <div class="field"><label>Mot de passe</label><input type="text" id="eu_pass" value="${u.pass}" class="mono"></div>
+    </div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveEditUser('${id}')">Enregistrer</button>
+  `;
+  openModal();
+}
+
+async function saveEditUser(id){
+  const u = DB.users.find(x=>x.id===id);
+  if(!u) return;
+  const newCode = document.getElementById('eu_code').value.trim();
+  if(DB.users.some(x=>x.id!==id && x.code.toLowerCase()===newCode.toLowerCase())){ toast('Ce code est déjà utilisé'); return; }
+  u.prenom = document.getElementById('eu_prenom').value.trim();
+  u.nom = document.getElementById('eu_nom').value.trim();
+  u.tel = document.getElementById('eu_tel').value.trim();
+  u.code = newCode;
+  u.pass = document.getElementById('eu_pass').value.trim();
+  logAction('Modification de compte', `${u.code} mis à jour`);
+  await saveDB();
+  closeModal();
+  toast('Compte mis à jour');
+  render();
+}
+
+function openPermUser(id){
+  const u = DB.users.find(x=>x.id===id);
+  if(!u) return;
+  document.getElementById('modalTitle').textContent = `Autorisations — ${u.prenom} ${u.nom}`;
+  document.getElementById('modalBody').innerHTML = `
+    <p class="muted" style="font-size:12.5px;margin-top:0;">Ces droits déterminent si ce compte peut modifier ou supprimer des enregistrements (SIM, CA, TDR, TDA, LP, PDV).</p>
+    <div class="tag-row">
+      <label class="perm-chip"><input type="checkbox" id="pu_modif" ${u.perms.modifier?'checked':''}> Modification</label>
+      <label class="perm-chip"><input type="checkbox" id="pu_suppr" ${u.perms.supprimer?'checked':''}> Suppression</label>
+    </div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="savePermUser('${id}')">Enregistrer</button>
+  `;
+  openModal();
+}
+
+async function savePermUser(id){
+  const u = DB.users.find(x=>x.id===id);
+  const newModif = document.getElementById('pu_modif').checked;
+  const newSuppr = document.getElementById('pu_suppr').checked;
+  if(!u.permsHistory) u.permsHistory = [];
+  if(newModif!==u.perms.modifier || newSuppr!==u.perms.supprimer){
+    u.permsHistory.push({
+      ts: nowISO(), by: SESSION.prenom+' '+SESSION.nom,
+      before: {modifier:u.perms.modifier, supprimer:u.perms.supprimer},
+      after: {modifier:newModif, supprimer:newSuppr}
+    });
+  }
+  u.perms.modifier = newModif;
+  u.perms.supprimer = newSuppr;
+  logAction('Autorisations modifiées', `${u.code} : modif=${u.perms.modifier}, suppr=${u.perms.supprimer}`);
+  await saveDB();
+  closeModal();
+  toast('Autorisations mises à jour');
+  render();
+}
+
+async function toggleUserActive(id){
+  const u = DB.users.find(x=>x.id===id);
+  u.active = !u.active;
+  logAction(u.active?'Compte réactivé':'Compte suspendu', u.code);
+  await saveDB();
+  toast(u.active?'Compte réactivé':'Compte suspendu');
+  render();
+}
+
+/* =========================================================================
+   ACCES (Responsable de zone : vue globale des codes)
+   ========================================================================= */
+function renderAccess(){
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Codes d'accès</h1><p>Vue globale de tous les identifiants de votre zone.</p></div>
+      <div class="panel-actions">
+        <input class="search-input" placeholder="Rechercher un code, un nom…" oninput="filterAccessTable(this.value)">
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportAccessExcel()">⬇ Excel</button>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body" id="accessTableWrap">${accessTable(DB.users)}</div></div>
+  `;
+}
+function accessTable(list){
+  if(list.length===0) return emptyState('Aucun compte','—');
+  return `<table><thead><tr><th>Code</th><th>Nom</th><th>Rôle</th><th>Mot de passe</th><th>Statut</th><th>Créé le</th></tr></thead><tbody>
+  ${list.map(u=>`<tr>
+    <td class="mono">${u.code}</td>
+    <td>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</td>
+    <td><span class="badge badge-orange">${roleLabel(u.role)}</span></td>
+    <td class="mono">${u.pass}</td>
+    <td>${u.active?'<span class="badge badge-ok">Actif</span>':'<span class="badge badge-danger">Suspendu</span>'}</td>
+    <td class="mono muted">${fmtDate(u.createdAt)}</td>
+  </tr>`).join('')}</tbody></table>`;
+}
+function exportAccessExcel(){
+  const rows = [['Code','Prénom','Nom','Rôle','Mot de passe','Statut','Créé le']];
+  DB.users.forEach(u=> rows.push([u.code, u.prenom, u.nom, roleLabel(u.role), u.pass, u.active?'Actif':'Suspendu', fmtDate(u.createdAt)]));
+  exportToExcel(rows, 'codes-acces-maison-orange', 'Codes acces');
+}
+function filterAccessTable(q){
+  q = q.toLowerCase();
+  const list = DB.users.filter(u=> u.code.toLowerCase().includes(q) || (u.prenom+' '+u.nom).toLowerCase().includes(q));
+  document.getElementById('accessTableWrap').innerHTML = accessTable(list);
+}
+
+/* Superviseur : voit uniquement les codes de son équipe (gérants + agents créés par lui, si applicable) */
+function renderAccessSup(){
+  const main = document.getElementById('mainContent');
+  const team = DB.users.filter(u=>u.createdBy===SESSION.id);
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Codes d'accès — mon équipe</h1><p>Comptes que vous avez créés.</p></div></div>
+    <div class="panel"><div class="panel-body">${accessTable(team)}</div></div>
+  `;
+}
+
+/* =========================================================================
+   AUTORISATIONS (Responsable de zone)
+   ========================================================================= */
+function renderPermissions(){
+  const main = document.getElementById('mainContent');
+  const list = DB.users.filter(u=>u.role!=='responsable_zone');
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Autorisations de personnel</h1><p>Gérez qui peut modifier ou supprimer des enregistrements dans le système.</p></div></div>
+    <div class="panel"><div class="panel-body">
+      <table><thead><tr><th>Nom</th><th>Rôle</th><th>Code</th><th>Modification</th><th>Suppression</th><th></th></tr></thead><tbody>
+      ${list.map(u=>`<tr>
+        <td>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</td>
+        <td><span class="badge badge-orange">${roleLabel(u.role)}</span></td>
+        <td class="mono">${u.code}</td>
+        <td>${u.perms.modifier?'<span class="badge badge-ok">Autorisé</span>':'<span class="badge badge-locked">Refusé</span>'}</td>
+        <td>${u.perms.supprimer?'<span class="badge badge-ok">Autorisé</span>':'<span class="badge badge-locked">Refusé</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="openPermUser('${u.id}')">Modifier</button></td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div></div>
+  `;
+}
+
+/* =========================================================================
+   PDV — Points de vente (superviseur crée / RZ supervise)
+   ========================================================================= */
+function renderPDV(){
+  const main = document.getElementById('mainContent');
+  const canCreate = SESSION.role==='superviseur' || SESSION.role==='responsable_zone';
+  const withGerant = DB.pdvs.filter(p=>p.gerantId).length;
+  const simsOnNetwork = DB.sims.filter(s=>s.pdvId).length;
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>Points de vente</h1><p>Gestion des PDV rattachés à la zone.</p></div>
+      ${canCreate?`<button class="btn btn-primary btn-sm" onclick="openCreatePDV()">+ Nouveau PDV</button>`:''}
+    </div>
+    ${cardsRow([
+      ['Points de vente', DB.pdvs.length, ''],
+      ['Avec gérant assigné', withGerant, DB.pdvs.length? Math.round(withGerant/DB.pdvs.length*100)+'% de couverture':''],
+      ['Sans gérant', DB.pdvs.length-withGerant, DB.pdvs.length-withGerant>0?'à pourvoir':'réseau complet'],
+      ['SIM sur le réseau', simsOnNetwork, ''],
+    ])}
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Réseau de distribution</h2>
+        <input class="search-input" id="pdvSearch" placeholder="Nom, localisation, gérant…" oninput="filterPdvGrid()">
+      </div>
+      <div class="panel-body" id="pdvGridWrap">${pdvGrid(DB.pdvs)}</div>
+    </div>
+  `;
+}
+
+function pdvGrid(list){
+  if(list.length===0) return emptyState('Aucun point de vente','Créez votre premier PDV, ou ajustez votre recherche.');
+  return `<div class="pdv-grid">${list.map(p=>{
+    const gerant = DB.users.find(u=>u.id===p.gerantId);
+    const simCount = DB.sims.filter(s=>s.pdvId===p.id).length;
+    const caTotal = gerant ? DB.ca.filter(c=>c.gerantId===gerant.id).reduce((a,c)=>a+Number(c.montant||0),0) : 0;
+    return `<div class="pdv-card" onclick="openPDVProfile('${p.id}')">
+      <div class="pdv-card-head">
+        <div class="pdv-card-name">${escapeHtml(p.nom)}</div>
+        ${gerant? '<span class="badge badge-ok">Actif</span>' : '<span class="badge badge-locked">Non assigné</span>'}
+      </div>
+      <div class="pdv-card-lieu">📍 ${escapeHtml(p.lieu||'Localisation non renseignée')}</div>
+      <div class="pdv-card-stats">
+        <div><span class="pdv-stat-val">${gerant? gerant.prenom+' '+gerant.nom.charAt(0)+'.' : '—'}</span><span class="pdv-stat-lab">Gérant</span></div>
+        <div><span class="pdv-stat-val">${simCount}</span><span class="pdv-stat-lab">SIM</span></div>
+        <div><span class="pdv-stat-val">${caTotal.toLocaleString('fr-FR')}</span><span class="pdv-stat-lab">GNF cumulés</span></div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function filterPdvGrid(){
+  const q = document.getElementById('pdvSearch').value.toLowerCase();
+  const list = DB.pdvs.filter(p=>{
+    const gerant = DB.users.find(u=>u.id===p.gerantId);
+    const hay = [p.nom, p.lieu, gerant?gerant.prenom+' '+gerant.nom:''].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  document.getElementById('pdvGridWrap').innerHTML = pdvGrid(list);
+}
+
+function openPDVProfile(id){
+  const p = DB.pdvs.find(x=>x.id===id);
+  const gerant = DB.users.find(u=>u.id===p.gerantId);
+  const creator = DB.users.find(u=>u.id===p.createdBy);
+  const sims = DB.sims.filter(s=>s.pdvId===p.id);
+  const series = gerant ? last14DaysSeries('ca', gerant.id, 14) : {labels:[],data:[]};
+
+  document.getElementById('modalTitle').textContent = p.nom;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid-cards" style="margin-bottom:14px;">
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Gérant</div><div class="stat-value" style="font-size:15px;">${gerant? gerant.prenom+' '+gerant.nom : '—'}</div></div>
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">SIM sur site</div><div class="stat-value" style="font-size:20px;">${sims.length}</div></div>
+    </div>
+    <table style="margin-bottom:14px;">
+      <tr><td class="muted" style="width:40%;">Localisation</td><td>${escapeHtml(p.lieu||'—')}</td></tr>
+      <tr><td class="muted">Téléphone gérant</td><td>${gerant? escapeHtml(gerant.tel||'—') : '—'}</td></tr>
+      <tr><td class="muted">Créé par</td><td>${creator? creator.prenom+' '+creator.nom : '—'}</td></tr>
+      <tr><td class="muted">Créé le</td><td class="mono">${fmtDate(p.createdAt)}</td></tr>
+    </table>
+    ${gerant ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">CA du gérant — 14 derniers jours</div>
+      <div class="chart-wrap" style="height:180px;"><canvas id="pdv_chart"></canvas></div>` : `<div class="muted" style="font-size:12.5px;">Aucun gérant assigné — aucune activité à afficher.</div>`}
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>
+    <button class="btn btn-primary btn-sm" onclick="closeModal();openEditPDV('${p.id}')">Modifier</button>
+  `;
+  openModal();
+  if(gerant) drawChart('pdv_chart','bar', series.labels, series.data, '#FF6600', 'CA (GNF)');
+}
+function openCreatePDV(){
+  document.getElementById('modalTitle').textContent = 'Nouveau point de vente';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>Nom du PDV</label><input type="text" id="pdv_nom"></div>
+    <div class="field"><label>Localisation</label><input type="text" id="pdv_lieu"></div>
+    <div class="field"><label>Gérant (optionnel)</label>
+      <select id="pdv_gerant"><option value="">— aucun —</option>
+      ${DB.users.filter(u=>u.role==='gerant').map(g=>`<option value="${g.id}">${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}
+      </select>
+    </div>`;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveNewPDV()">Créer</button>`;
+  openModal();
+}
+async function saveNewPDV(){
+  const nom = document.getElementById('pdv_nom').value.trim();
+  if(!nom){ toast('Le nom du PDV est requis'); return; }
+  DB.pdvs.push({
+    id: uid('PDV'), nom, lieu: document.getElementById('pdv_lieu').value.trim(),
+    gerantId: document.getElementById('pdv_gerant').value || null,
+    createdAt: nowISO(), createdBy: SESSION.id
+  });
+  logAction('Création PDV', nom);
+  await saveDB();
+  closeModal(); toast('Point de vente créé'); render();
+}
+function openEditPDV(id){
+  const p = DB.pdvs.find(x=>x.id===id);
+  document.getElementById('modalTitle').textContent = 'Modifier le PDV';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>Nom du PDV</label><input type="text" id="pdv_nom" value="${escapeHtml(p.nom)}"></div>
+    <div class="field"><label>Localisation</label><input type="text" id="pdv_lieu" value="${escapeHtml(p.lieu||'')}"></div>
+    <div class="field"><label>Gérant</label>
+      <select id="pdv_gerant"><option value="">— aucun —</option>
+      ${DB.users.filter(u=>u.role==='gerant').map(g=>`<option value="${g.id}" ${g.id===p.gerantId?'selected':''}>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}
+      </select>
+    </div>`;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveEditPDV('${id}')">Enregistrer</button>`;
+  openModal();
+}
+async function saveEditPDV(id){
+  const p = DB.pdvs.find(x=>x.id===id);
+  p.nom = document.getElementById('pdv_nom').value.trim();
+  p.lieu = document.getElementById('pdv_lieu').value.trim();
+  p.gerantId = document.getElementById('pdv_gerant').value || null;
+  logAction('Modification PDV', p.nom);
+  await saveDB();
+  closeModal(); toast('PDV mis à jour'); render();
+}
+
+/* =========================================================================
+   GERANTS (créés par le superviseur)
+   ========================================================================= */
+function renderGerants(){
+  const main = document.getElementById('mainContent');
+  const mine = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id);
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>Mes gérants</h1><p>Créez et suivez les gérants sous votre supervision.</p></div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateUser('gerant')">+ Nouveau gérant</button>
+    </div>
+    ${cardsRow([
+      ['Gérants', mine.length, mine.filter(g=>g.active).length+' actifs'],
+      ['Points de vente couverts', DB.pdvs.filter(p=>mine.some(g=>g.id===p.gerantId)).length, ''],
+    ])}
+    <div class="panel"><div class="panel-body">${userTable(mine,'gerant')}</div></div>
+  `;
+}
+
+/* =========================================================================
+   SIMS — traçabilité (agent : enregistre attribution/retrait ; superviseur : déploie)
+   ========================================================================= */
+/* ---------- ALERTES SIM ----------
+   - Stock dormant : SIM en stock depuis plus de 15 jours sans attribution
+   - Mouvements suspects : SIM ayant subi 3 retraits ou plus (rotation anormale) */
+function simAlerts(){
+  const alerts = [];
+  const now = new Date();
+  DB.sims.forEach(s=>{
+    if(s.statut==='stock'){
+      const lastEvent = s.history[s.history.length-1];
+      const days = lastEvent ? Math.floor((now - new Date(lastEvent.ts))/86400000) : 0;
+      if(days >= 15) alerts.push({sim:s, type:'dormant', detail:`En stock depuis ${days} jours sans attribution`});
+    }
+    const retraits = s.history.filter(h=>h.event==='Retrait').length;
+    if(retraits >= 3) alerts.push({sim:s, type:'rotation', detail:`${retraits} retraits enregistrés — rotation anormale`});
+  });
+  return alerts;
+}
+
+function renderSims(){
+  const main = document.getElementById('mainContent');
+  const canDeploy = SESSION.role==='superviseur';
+  const canRegister = SESSION.role==='agent';
+  let list = DB.sims;
+  if(SESSION.role==='agent') list = list.filter(s=>s.agentId===SESSION.id);
+
+  const attribuees = list.filter(s=>s.statut==='attribuee').length;
+  const stock = list.filter(s=>s.statut==='stock').length;
+  const alerts = SESSION.role!=='agent' ? simAlerts() : [];
+
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>SIM & traçabilité</h1><p>${canRegister? "Enregistrez les attributions et retraits des SIM que vous gérez." : "Déploiement et suivi des SIM sur le réseau."}</p></div>
+      <div class="panel-actions">
+        ${canDeploy?`<button class="btn btn-primary btn-sm" onclick="openDeploySim()">+ Déployer une SIM</button>`:''}
+        ${canRegister?`<button class="btn btn-primary btn-sm" onclick="openAttribSim()">+ Attribuer à un client</button>`:''}
+        ${SESSION.role==='responsable_zone'?`<button class="btn btn-ghost btn-sm export-btn" onclick="exportSimsExcel()">⬇ Excel</button>`:''}
+      </div>
+    </div>
+
+    ${cardsRow([
+      ['SIM totales', list.length, ''],
+      ['Attribuées', attribuees, ''],
+      ['En stock', stock, ''],
+      ['Alertes actives', alerts.length, alerts.length? 'à vérifier' : 'aucune anomalie'],
+    ])}
+
+    ${alerts.length ? `<div class="panel">
+      <div class="panel-head"><h2>⚠ Alertes</h2></div>
+      <div class="panel-body">
+        <table><thead><tr><th>ICCID</th><th>Type</th><th>Détail</th><th></th></tr></thead><tbody>
+        ${alerts.map(a=>`<tr>
+          <td class="mono">${a.sim.iccid}</td>
+          <td>${a.type==='dormant'?'<span class="badge badge-warn">Stock dormant</span>':'<span class="badge badge-danger">Rotation anormale</span>'}</td>
+          <td class="muted">${escapeHtml(a.detail)}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="openSimHistory('${a.sim.id}')">Voir</button></td>
+        </tr>`).join('')}
+        </tbody></table>
+      </div>
+    </div>` : ''}
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Registre des SIM</h2>
+        <div class="panel-actions">
+          <input class="search-input" id="simSearch" placeholder="ICCID, client, agent…" oninput="filterSimsTable()">
+          <select id="simStatusFilter" onchange="filterSimsTable()" style="width:auto;">
+            <option value="">Tous les statuts</option>
+            <option value="attribuee">Attribuée</option>
+            <option value="stock">En stock</option>
+          </select>
+          ${SESSION.role!=='agent' ? `<select id="simPdvFilter" onchange="filterSimsTable()" style="width:auto;">
+            <option value="">Tous les PDV</option>
+            ${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}
+          </select>` : ''}
+        </div>
+      </div>
+      <div class="panel-body" id="simsTableWrap">${simsTable(list)}</div>
+    </div>
+  `;
+}
+
+function filterSimsTable(){
+  const q = (document.getElementById('simSearch')?.value || '').toLowerCase();
+  const statusF = document.getElementById('simStatusFilter')?.value || '';
+  const pdvF = document.getElementById('simPdvFilter')?.value || '';
+  let list = DB.sims;
+  if(SESSION.role==='agent') list = list.filter(s=>s.agentId===SESSION.id);
+  list = list.filter(s=>{
+    const agent = DB.users.find(u=>u.id===s.agentId);
+    const hay = [s.iccid, s.clientNomActuel, s.clientTelActuel, agent?agent.prenom+' '+agent.nom:''].join(' ').toLowerCase();
+    if(q && !hay.includes(q)) return false;
+    if(statusF && s.statut!==statusF) return false;
+    if(pdvF && s.pdvId!==pdvF) return false;
+    return true;
+  });
+  document.getElementById('simsTableWrap').innerHTML = simsTable(list);
+}
+
+function exportSimsExcel(){
+  const rows = [['ICCID','Statut','Client actuel','Téléphone','Agent','PDV','Historique']];
+  DB.sims.forEach(s=>{
+    const agent = DB.users.find(u=>u.id===s.agentId);
+    const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
+    const hist = s.history.map(h=>`${fmtDate(h.ts)} | ${h.event} | ${h.details}`).join('  //  ');
+    rows.push([s.iccid, s.statut, s.clientNomActuel||'—', s.clientTelActuel||'—', agent?agent.prenom+' '+agent.nom:'—', pdv?pdv.nom:'—', hist]);
+  });
+  exportToExcel(rows, 'sims-tracabilite-maison-orange', 'SIM');
+}
+function simsTable(list){
+  if(list.length===0) return emptyState('Aucune SIM enregistrée','Déployez une SIM pour commencer le suivi, ou ajustez vos filtres.');
+  return `<table><thead><tr><th>ICCID</th><th>Statut</th><th>Client actuel</th><th>Agent en charge</th><th>PDV</th><th>Titulaires</th><th>Actions</th></tr></thead><tbody>
+  ${list.map(s=>{
+    const agent = DB.users.find(u=>u.id===s.agentId);
+    const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
+    const statusBadge = s.statut==='attribuee' ? '<span class="badge badge-ok">Attribuée</span>' :
+                         s.statut==='stock' ? '<span class="badge badge-warn">En stock</span>' :
+                         '<span class="badge badge-locked">Retirée</span>';
+    const titulaires = s.history.filter(h=>h.event==='Attribution').length;
+    const retraits = s.history.filter(h=>h.event==='Retrait').length;
+    return `<tr>
+      <td class="mono">${s.iccid}</td>
+      <td>${statusBadge}</td>
+      <td>${s.clientNomActuel? escapeHtml(s.clientNomActuel)+' <span class="muted mono">'+escapeHtml(s.clientTelActuel||'')+'</span>' : '<span class="muted">—</span>'}</td>
+      <td>${agent? agent.prenom+' '+agent.nom : '<span class="muted">—</span>'}</td>
+      <td class="muted">${pdv? pdv.nom : '—'}</td>
+      <td>${titulaires} ${retraits>=3?'<span class="badge badge-danger">⚠</span>':''}</td>
+      <td class="tag-row">
+        <button class="btn btn-ghost btn-sm" onclick="openSimHistory('${s.id}')">Historique</button>
+        ${SESSION.role==='agent' && s.statut==='attribuee' ? `<button class="btn btn-danger btn-sm" onclick="openRetraitSim('${s.id}')">Retirer</button>`:''}
+      </td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function openDeploySim(){
+  document.getElementById('modalTitle').textContent = 'Déployer une SIM';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>ICCID / numéro de SIM</label><input type="text" id="sim_iccid" placeholder="8922..."></div>
+    <div class="field"><label>Point de vente</label>
+      <select id="sim_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>
+    <div class="field"><label>Agent destinataire</label>
+      <select id="sim_agent"><option value="">— aucun (stock) —</option>${DB.users.filter(u=>u.role==='agent').map(a=>`<option value="${a.id}">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</option>`).join('')}</select></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveDeploySim()">Déployer</button>`;
+  openModal();
+}
+async function saveDeploySim(){
+  const iccid = document.getElementById('sim_iccid').value.trim();
+  if(!iccid){ toast('ICCID requis'); return; }
+  if(DB.sims.some(s=>s.iccid===iccid)){ toast('Cette SIM existe déjà'); return; }
+  const agentId = document.getElementById('sim_agent').value || null;
+  DB.sims.push({
+    id: uid('SIM'), iccid,
+    statut: agentId ? 'stock' : 'stock',
+    pdvId: document.getElementById('sim_pdv').value || null,
+    agentId,
+    deployedBy: SESSION.id, deployedAt: nowISO(),
+    clientNomActuel:null, clientTelActuel:null,
+    history: [{ event:'Déploiement', ts: nowISO(), by: SESSION.prenom+' '+SESSION.nom, details: agentId? `Assignée à l'agent ${DB.users.find(u=>u.id===agentId).prenom}`:'Mise en stock' }]
+  });
+  logAction('Déploiement SIM', iccid);
+  await saveDB();
+  closeModal(); toast('SIM déployée'); render();
+}
+
+function openAttribSim(){
+  const myStock = DB.sims.filter(s=>s.agentId===SESSION.id && s.statut!=='attribuee');
+  document.getElementById('modalTitle').textContent = 'Attribuer une SIM à un client';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>SIM disponible</label>
+      <select id="at_sim">${myStock.length===0? '<option value="">Aucune SIM disponible</option>' : myStock.map(s=>`<option value="${s.id}">${s.iccid}</option>`).join('')}</select></div>
+    <div class="field"><label>Nom du client</label><input type="text" id="at_nom"></div>
+    <div class="field"><label>Téléphone du client</label><input type="text" id="at_tel"></div>
+    <div class="field"><label>Pièce d'identité (CNI)</label><input type="text" id="at_cni"></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveAttribSim()">Attribuer</button>`;
+  openModal();
+}
+async function saveAttribSim(){
+  const simId = document.getElementById('at_sim').value;
+  const nom = document.getElementById('at_nom').value.trim();
+  const tel = document.getElementById('at_tel').value.trim();
+  const cni = document.getElementById('at_cni').value.trim();
+  if(!simId || !nom){ toast('Veuillez sélectionner une SIM et saisir le nom du client'); return; }
+  const s = DB.sims.find(x=>x.id===simId);
+  s.statut='attribuee';
+  s.clientNomActuel = nom;
+  s.clientTelActuel = tel;
+  s.history.push({event:'Attribution', ts: nowISO(), by: SESSION.prenom+' '+SESSION.nom, details:`Attribuée à ${nom} (${tel})${cni?' — CNI:'+cni:''}`});
+  logAction('Attribution SIM', `${s.iccid} → ${nom}`);
+  await saveDB();
+  closeModal(); toast('SIM attribuée au client'); render();
+}
+
+function openRetraitSim(id){
+  const s = DB.sims.find(x=>x.id===id);
+  document.getElementById('modalTitle').textContent = `Retirer la SIM ${s.iccid}`;
+  document.getElementById('modalBody').innerHTML = `
+    <p class="muted" style="font-size:12.5px;margin-top:0">Client actuel : <b>${escapeHtml(s.clientNomActuel||'—')}</b></p>
+    <div class="field"><label>Motif du retrait</label><input type="text" id="rt_motif" placeholder="Perte, remplacement, résiliation…"></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-danger btn-sm" onclick="saveRetraitSim('${id}')">Confirmer le retrait</button>`;
+  openModal();
+}
+async function saveRetraitSim(id){
+  const s = DB.sims.find(x=>x.id===id);
+  const motif = document.getElementById('rt_motif').value.trim();
+  s.history.push({event:'Retrait', ts: nowISO(), by: SESSION.prenom+' '+SESSION.nom, details:`Retirée à ${s.clientNomActuel} — motif : ${motif||'non précisé'}`});
+  s.statut='stock';
+  s.clientNomActuel=null;
+  s.clientTelActuel=null;
+  logAction('Retrait SIM', s.iccid);
+  await saveDB();
+  closeModal(); toast('SIM retirée — redevient disponible pour un nouveau client'); render();
+}
+
+function openSimHistory(id){
+  const s = DB.sims.find(x=>x.id===id);
+  const titulaires = s.history.filter(h=>h.event==='Attribution').length;
+  const retraits = s.history.filter(h=>h.event==='Retrait').length;
+  const firstEvent = s.history[0];
+  const ancienneteJours = firstEvent ? Math.floor((new Date() - new Date(firstEvent.ts))/86400000) : 0;
+  document.getElementById('modalTitle').textContent = `Historique — ${s.iccid}`;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid-cards" style="margin-bottom:14px;">
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Titulaires</div><div class="stat-value" style="font-size:20px;">${titulaires}</div></div>
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Retraits</div><div class="stat-value" style="font-size:20px;">${retraits}</div></div>
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Ancienneté</div><div class="stat-value" style="font-size:20px;">${ancienneteJours} j</div></div>
+    </div>
+    ${s.history.length? s.history.slice().reverse().map(h=>`
+    <div class="hist-item">
+      <div class="h-date">${fmtDate(h.ts)} — ${escapeHtml(h.by)}</div>
+      <div><b>${escapeHtml(h.event)}</b> — ${escapeHtml(h.details)}</div>
+    </div>`).join('') : emptyState('Aucun historique','—')}
+  `;
+  document.getElementById('modalFoot').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>`;
+  openModal();
+}
+
+/* =========================================================================
+   CA — Chiffre d'affaires (déclaré par gérant, visible superviseur (jour) / RZ (tout))
+   ========================================================================= */
+function renderCA(){
+  const main = document.getElementById('mainContent');
+  const role = SESSION.role;
+
+  if(role==='gerant'){
+    const mine = DB.ca.filter(c=>c.gerantId===SESSION.id);
+    const series = last14DaysSeries('ca', SESSION.id);
+    main.innerHTML = `
+      <div class="topbar"><div><h1>Déclarer le CA</h1><p>Enregistrez votre chiffre d'affaires journalier.</p></div>
+        <button class="btn btn-primary btn-sm" onclick="openDeclare('ca')">+ Déclarer</button>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Tendance — 14 derniers jours</h2></div>
+        <div class="panel-body">
+          <div class="chart-wrap"><canvas id="chart_ca_trend"></canvas></div>
+          ${objectifProgressHtml('ca', SESSION.id)}
+        </div>
+      </div>
+      <div class="panel"><div class="panel-body">${moveTable(mine,'ca')}</div></div>`;
+    drawChart('chart_ca_trend','bar', series.labels, series.data, '#FF6600', 'CA (GNF)');
+    return;
+  }
+  renderMoveTable('ca','Chiffre d\'affaires','Suivi des déclarations de CA des gérants.');
+}
+
+function renderMoveTable(type, title, sub){
+  const main = document.getElementById('mainContent');
+  const role = SESSION.role;
+  let list = DB[type];
+  let lockBanner = '';
+  let chartsHtml = '';
+  let afterRender = ()=>{};
+
+  if(role==='gerant'){
+    list = list.filter(e=>e.gerantId===SESSION.id);
+    const series = last14DaysSeries(type, SESSION.id);
+    chartsHtml = `<div class="panel"><div class="panel-head"><h2>Tendance — 14 derniers jours</h2></div>
+      <div class="panel-body">
+        <div class="chart-wrap"><canvas id="chart_${type}_trend"></canvas></div>
+        ${objectifProgressHtml(type, SESSION.id)}
+      </div></div>`;
+    afterRender = ()=> drawChart(`chart_${type}_trend`,'bar', series.labels, series.data, '#FF6600', `${typeLabel(type)} (${unitFor(type)})`);
+  } else if(role==='superviseur'){
+    list = list.filter(e => e.superviseurId===SESSION.id && supervisorCanSeeDay(e.date));
+    lockBanner = `<div class="lock-banner"><span class="banner-text">🔒 Vous ne voyez que les opérations du jour. L'historique passe sous le contrôle exclusif du responsable de zone après minuit.</span>${dayArcSVG(38)}</div>`;
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id).map(g=>g.id);
+    const dist = totalsByGerant(type, myGerants, isToday);
+    chartsHtml = `<div class="panel"><div class="panel-head"><h2>Répartition du jour par gérant</h2>
+      <button class="btn btn-ghost btn-sm" onclick="openObjectifsModal('${type}')">🎯 Objectifs</button></div>
+      <div class="panel-body"><div class="chart-wrap">${dist.data.every(v=>v===0)?emptyState('Rien à afficher',"Aucune déclaration aujourd'hui."):'<canvas id="chart_'+type+'_dist"></canvas>'}</div></div></div>`;
+    afterRender = ()=> { if(!dist.data.every(v=>v===0)) drawChart(`chart_${type}_dist`,'bar', dist.labels, dist.data, '#D14E00', `${typeLabel(type)} du jour`); };
+  } else if(role==='responsable_zone'){
+    const gerantIds = DB.users.filter(u=>u.role==='gerant').map(g=>g.id);
+    const trend = last14DaysSeries(type, null);
+    const dist = totalsByGerant(type, gerantIds, null);
+    chartsHtml = `<div class="grid-2">
+      <div class="panel"><div class="panel-head"><h2>Tendance — 14 derniers jours</h2></div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="chart_${type}_trend"></canvas></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Total par gérant</h2>
+        <button class="btn btn-ghost btn-sm" onclick="openObjectifsModal('${type}')">🎯 Objectifs</button></div>
+        <div class="panel-body"><div class="chart-wrap">${dist.data.length===0?emptyState('Aucun gérant','—'):'<canvas id="chart_'+type+'_dist"></canvas>'}</div></div></div>
+    </div>`;
+    afterRender = ()=>{
+      drawChart(`chart_${type}_trend`,'line', trend.labels, trend.data, '#FF6600', `${typeLabel(type)} (${unitFor(type)})`);
+      if(dist.data.length) drawChart(`chart_${type}_dist`,'bar', dist.labels, dist.data, '#7A2E00', `Total ${typeLabel(type)}`);
+    };
+  }
+
+  main.innerHTML = `
+    <div class="topbar"><div><h1>${title}</h1><p>${sub}</p></div>
+      <div class="panel-actions">
+        ${role==='gerant'?`<button class="btn btn-primary btn-sm" onclick="openDeclare('${type}')">+ Déclarer</button>`:''}
+        ${role==='responsable_zone'?`<button class="btn btn-ghost btn-sm export-btn" onclick="exportMoveExcel('${type}','${title}')">⬇ Excel</button>`:''}
+      </div>
+    </div>
+    ${lockBanner}
+    ${chartsHtml}
+    <div class="panel"><div class="panel-body">${moveTable(list,type)}</div></div>
+  `;
+  afterRender();
+}
+function exportMoveExcel(type, title){
+  const rows = [['Date','Gérant','Superviseur','Montant','Référence','Notes']];
+  DB[type].forEach(e=>{
+    const gerant = DB.users.find(u=>u.id===e.gerantId);
+    const sup = DB.users.find(u=>u.id===e.superviseurId);
+    rows.push([e.date, gerant?gerant.prenom+' '+gerant.nom:'—', sup?sup.prenom+' '+sup.nom:'—', e.montant, e.ref, e.notes]);
+  });
+  exportToExcel(rows, `${type}-maison-orange`, title);
+}
+
+function moveTable(list, type){
+  if(list.length===0) return emptyState('Aucune donnée','Aucune déclaration enregistrée pour le moment.');
+  list = [...list].sort((a,b)=> new Date(b.date)-new Date(a.date));
+  return `<table><thead><tr><th>Date</th><th>Gérant</th><th>Superviseur</th><th>Montant</th><th>Référence</th><th>Notes</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
+  ${list.map(e=>{
+    const gerant = DB.users.find(u=>u.id===e.gerantId);
+    const sup = DB.users.find(u=>u.id===e.superviseurId);
+    return `<tr>
+      <td class="mono">${e.date}</td>
+      <td>${gerant? gerant.prenom+' '+gerant.nom:'—'}</td>
+      <td class="muted">${sup? sup.prenom+' '+sup.nom:'—'}</td>
+      <td><b>${Number(e.montant||0).toLocaleString('fr-FR')} GNF</b></td>
+      <td class="mono muted">${escapeHtml(e.ref||'—')}</td>
+      <td class="muted">${escapeHtml(e.notes||'')}</td>
+      ${SESSION.role==='responsable_zone'?`<td><button class="btn btn-ghost btn-sm" onclick="deleteEntry('${type}','${e.id}')">Suppr.</button></td>`:''}
+    </tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+function openDeclare(type){
+  const labels = {ca:'Chiffre d\'affaires', tdr:'TDR', tda:'TDA', lp:'LP'};
+  document.getElementById('modalTitle').textContent = `Déclarer — ${labels[type]}`;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>Date</label><input type="date" id="dc_date" value="${todayStr()}"></div>
+    <div class="field"><label>Montant / quantité</label><input type="number" id="dc_montant" placeholder="0"></div>
+    <div class="field"><label>Référence</label><input type="text" id="dc_ref" placeholder="N° reçu, transaction…"></div>
+    <div class="field"><label>Notes</label><textarea id="dc_notes" rows="2"></textarea></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveDeclare('${type}')">Enregistrer</button>`;
+  openModal();
+}
+async function saveDeclare(type){
+  const date = document.getElementById('dc_date').value || todayStr();
+  const montant = document.getElementById('dc_montant').value;
+  const ref = document.getElementById('dc_ref').value.trim();
+  const notes = document.getElementById('dc_notes').value.trim();
+  const supervisorId = DB.users.find(u=>u.id===SESSION.createdBy)?.id || null;
+  DB[type].push({ id: uid(type.toUpperCase()), gerantId: SESSION.id, superviseurId: supervisorId, date, montant, ref, notes });
+  logAction(`Déclaration ${type.toUpperCase()}`, `${montant} le ${date}`);
+  await saveDB();
+  closeModal(); toast('Déclaration enregistrée'); render();
+}
+async function deleteEntry(type,id){
+  DB[type] = DB[type].filter(e=>e.id!==id);
+  logAction(`Suppression ${type.toUpperCase()}`, id);
+  await saveDB();
+  toast('Entrée supprimée'); render();
+}
+
+/* =========================================================================
+   ACTIVITE JOURNALIERE (superviseur = jour seul ; RZ = tout, journalier + mensuel)
+   ========================================================================= */
+function renderDaily(){
+  const main = document.getElementById('mainContent');
+  const role = SESSION.role;
+
+  if(role==='superviseur'){
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id).map(g=>g.id);
+    const logs = DB.activityLog.filter(l=> isToday(l.ts) && myGerants.includes(l.userId));
+    main.innerHTML = `
+      <div class="topbar"><div><h1>Mouvements des gérants — aujourd'hui</h1><p>Suivi journalier uniquement. L'historique bascule au responsable de zone après la journée.</p></div></div>
+      <div class="lock-banner"><span class="banner-text">🔒 Cette vue se réinitialise chaque jour à minuit.</span>${dayArcSVG(38)}</div>
+      <div class="panel"><div class="panel-body">${logTable(logs)}</div></div>
+    `;
+    return;
+  }
+
+  // Responsable de zone : filtre journalier + mensuel
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Activité journalière des gérants</h1><p>Vue complète : jour, mois, ou historique intégral — à des fins de rapport et de vérification.</p></div></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="day" onclick="switchDailyTab('day')">Aujourd'hui</button>
+      <button class="tab-btn" data-tab="month" onclick="switchDailyTab('month')">Ce mois</button>
+      <button class="tab-btn" data-tab="all" onclick="switchDailyTab('all')">Historique complet</button>
+    </div>
+    <div class="panel"><div class="panel-body" id="dailyTableWrap">${logTable(dailyFiltered('day'))}</div></div>
+  `;
+}
+function dailyFiltered(mode){
+  const gerantIds = DB.users.filter(u=>u.role==='gerant').map(g=>g.id);
+  let logs = DB.activityLog.filter(l=> gerantIds.includes(l.userId));
+  if(mode==='day') logs = logs.filter(l=>isToday(l.ts));
+  if(mode==='month'){
+    const ym = todayStr().slice(0,7);
+    logs = logs.filter(l=>l.ts.slice(0,7)===ym);
+  }
+  return logs;
+}
+function switchDailyTab(mode){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===mode));
+  document.getElementById('dailyTableWrap').innerHTML = logTable(dailyFiltered(mode));
+}
+function logTable(logs){
+  logs = [...logs].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+  if(logs.length===0) return emptyState('Aucun mouvement','Rien à afficher pour cette période.');
+  return `<table><thead><tr><th>Date/heure</th><th>Gérant</th><th>Action</th><th>Détail</th></tr></thead><tbody>
+  ${logs.map(l=>`<tr><td class="mono">${fmtDate(l.ts)}</td><td>${escapeHtml(l.userNom)}</td><td>${escapeHtml(l.action)}</td><td class="muted">${escapeHtml(l.details)}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+/* =========================================================================
+   AUDIT (RZ uniquement — journal complet de toutes les actions)
+   ========================================================================= */
+function renderAudit(){
+  const main = document.getElementById('mainContent');
+  const logs = [...DB.activityLog].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Journal d'audit</h1><p>Historique intégral de toutes les actions du système, tous rôles confondus.</p></div>
+      <div class="panel-actions">
+        <input class="search-input" placeholder="Filtrer par nom, action…" oninput="filterAudit(this.value)">
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportAuditExcel()">⬇ Excel</button>
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportAuditPDF()">⬇ PDF</button>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-body" id="auditWrap">${logTable(logs)}</div></div>
+  `;
+}
+function exportAuditExcel(){
+  const rows = [['Date/heure','Utilisateur','Rôle','Action','Détail']];
+  [...DB.activityLog].sort((a,b)=> new Date(b.ts)-new Date(a.ts)).forEach(l=>
+    rows.push([fmtDate(l.ts), l.userNom, roleLabel(l.role), l.action, l.details]));
+  exportToExcel(rows, 'journal-audit-maison-orange', 'Audit');
+}
+function exportAuditPDF(){
+  const logs = [...DB.activityLog].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+  exportToPDF('Journal d\'audit', 'Historique intégral des actions',
+    ['Date/heure','Utilisateur','Rôle','Action','Détail'],
+    logs.map(l=>[fmtDate(l.ts), l.userNom, roleLabel(l.role), l.action, l.details]));
+}
+function filterAudit(q){
+  q=q.toLowerCase();
+  const logs = DB.activityLog.filter(l=> l.userNom.toLowerCase().includes(q) || l.action.toLowerCase().includes(q)).sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+  document.getElementById('auditWrap').innerHTML = logTable(logs);
+}
+
+/* =========================================================================
+   RAPPORTS (RZ — annuel / trimestriel)
+   ========================================================================= */
+function renderReports(){
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Rapports annuel & trimestriel</h1><p>Générez une synthèse des indicateurs de la zone, ou comparez deux périodes.</p></div></div>
+    <div class="panel">
+      <div class="panel-head"><h2>Générer un rapport</h2></div>
+      <div class="panel-body">
+        <div class="grid-2">
+          <div class="field"><label>Type de rapport</label>
+            <select id="rp_type"><option value="trimestriel">Trimestriel</option><option value="annuel">Annuel</option></select></div>
+          <div class="field"><label>Période</label>
+            <select id="rp_periode">${reportPeriodOptions()}</select></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="generateReport()">Générer le rapport</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-rtab="liste" onclick="switchReportsTab('liste')">Rapports générés</button>
+      <button class="tab-btn" data-rtab="comparer" onclick="switchReportsTab('comparer')">Comparer deux périodes</button>
+    </div>
+    <div id="reportsTabWrap">
+      <div class="panel"><div class="panel-head"><h2>Rapports générés</h2></div>
+        <div class="panel-body" id="reportsListWrap">${reportsList()}</div>
+      </div>
+    </div>
+  `;
+}
+function switchReportsTab(mode){
+  document.querySelectorAll('[data-rtab]').forEach(b=>b.classList.toggle('active', b.dataset.rtab===mode));
+  const wrap = document.getElementById('reportsTabWrap');
+  if(mode==='liste'){
+    wrap.innerHTML = `<div class="panel"><div class="panel-head"><h2>Rapports générés</h2></div>
+      <div class="panel-body" id="reportsListWrap">${reportsList()}</div></div>`;
+  } else {
+    wrap.innerHTML = comparePeriodsView();
+  }
+}
+function allPeriodOptions(){
+  const y = new Date().getFullYear();
+  let opts = '';
+  for(let yr=y; yr>=y-3; yr--){
+    ['Q1','Q2','Q3','Q4'].forEach(q=> opts += `<option value="${q}-${yr}">${periodeLabel(q+'-'+yr)}</option>`);
+    opts += `<option value="Y-${yr}">${periodeLabel('Y-'+yr)}</option>`;
+  }
+  return opts;
+}
+function comparePeriodsView(){
+  return `<div class="panel"><div class="panel-head"><h2>Comparer deux périodes</h2></div>
+    <div class="panel-body">
+      <div class="grid-2">
+        <div class="field"><label>Période A</label><select id="cmp_a" onchange="runComparison()">${allPeriodOptions()}</select></div>
+        <div class="field"><label>Période B</label><select id="cmp_b" onchange="runComparison()">${allPeriodOptions()}</select></div>
+      </div>
+      <div id="cmpResult"></div>
+    </div>
+  </div>`;
+}
+function deltaHtml(a,b,unit){
+  if(a===0 && b===0) return '<span class="muted">—</span>';
+  const diff = b-a;
+  const pct = a!==0 ? Math.round((diff/a)*100) : (b>0?100:0);
+  const cls = diff>=0 ? 'delta-up' : 'delta-down';
+  const arrow = diff>=0 ? '▲' : '▼';
+  return `<span class="${cls}">${arrow} ${Math.abs(pct)}%</span>`;
+}
+function runComparison(){
+  const pa = document.getElementById('cmp_a').value;
+  const pb = document.getElementById('cmp_b').value;
+  const sa = computeStatsForPeriod(pa);
+  const sb = computeStatsForPeriod(pb);
+  document.getElementById('cmpResult').innerHTML = `
+    <table style="margin-top:10px;">
+      <thead><tr><th>Indicateur</th><th>${periodeLabel(pa)}</th><th>${periodeLabel(pb)}</th><th>Évolution</th></tr></thead>
+      <tbody>
+        <tr><td>CA total</td><td><b>${sa.caTotal.toLocaleString('fr-FR')} GNF</b></td><td><b>${sb.caTotal.toLocaleString('fr-FR')} GNF</b></td><td>${deltaHtml(sa.caTotal,sb.caTotal)}</td></tr>
+        <tr><td>TDR (nb. opérations)</td><td>${sa.tdrTotal}</td><td>${sb.tdrTotal}</td><td>${deltaHtml(sa.tdrTotal,sb.tdrTotal)}</td></tr>
+        <tr><td>TDA (nb. opérations)</td><td>${sa.tdaTotal}</td><td>${sb.tdaTotal}</td><td>${deltaHtml(sa.tdaTotal,sb.tdaTotal)}</td></tr>
+        <tr><td>LP (lignes)</td><td>${sa.lpTotal.toLocaleString('fr-FR')}</td><td>${sb.lpTotal.toLocaleString('fr-FR')}</td><td>${deltaHtml(sa.lpTotal,sb.lpTotal)}</td></tr>
+      </tbody>
+    </table>
+    <div class="chart-wrap" style="margin-top:16px;"><canvas id="chart_cmp"></canvas></div>
+  `;
+  destroyChart('chart_cmp');
+  new Chart(document.getElementById('chart_cmp'), {
+    type:'bar',
+    data:{ labels:['TDR','TDA','LP (÷100)'], datasets:[
+      { label: periodeLabel(pa), data:[sa.tdrTotal, sa.tdaTotal, Math.round(sa.lpTotal/100)], backgroundColor:'#FF6600CC', borderRadius:4 },
+      { label: periodeLabel(pb), data:[sb.tdrTotal, sb.tdaTotal, Math.round(sb.lpTotal/100)], backgroundColor:'#1B1B1FCC', borderRadius:4 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:true, position:'bottom'}}, scales:{ y:{beginAtZero:true, grid:{color:'#EEE9E2'}}, x:{grid:{display:false}} } }
+  });
+}
+function reportPeriodOptions(){
+  const y = new Date().getFullYear();
+  let opts = '';
+  for(let yr=y; yr>=y-3; yr--){
+    opts += `<option value="Q1-${yr}">T1 ${yr}</option><option value="Q2-${yr}">T2 ${yr}</option><option value="Q3-${yr}">T3 ${yr}</option><option value="Q4-${yr}">T4 ${yr}</option><option value="Y-${yr}">Année ${yr}</option>`;
+  }
+  return opts;
+}
+async function generateReport(){
+  const type = document.getElementById('rp_type').value;
+  const periode = document.getElementById('rp_periode').value;
+  const stats = computeStatsForPeriod(periode);
+  const report = {
+    id: uid('RPT'), type, periode, generatedAt: nowISO(), generatedBy: SESSION.prenom+' '+SESSION.nom,
+    stats
+  };
+  DB.reports.push(report);
+  logAction('Génération rapport', `${type} — ${periode}`);
+  await saveDB();
+  toast('Rapport généré');
+  render();
+}
+function reportsList(){
+  if(DB.reports.length===0) return emptyState('Aucun rapport','Générez votre premier rapport ci-dessus.');
+  const list = [...DB.reports].sort((a,b)=> new Date(b.generatedAt)-new Date(a.generatedAt));
+  return `<table><thead><tr><th>Type</th><th>Période</th><th>Généré le</th><th>Par</th><th>CA total</th><th>Effectifs</th><th></th></tr></thead><tbody>
+  ${list.map(r=>`<tr>
+    <td><span class="badge badge-orange">${r.type}</span></td>
+    <td class="mono">${r.periode}</td>
+    <td class="mono muted">${fmtDate(r.generatedAt)}</td>
+    <td>${escapeHtml(r.generatedBy)}</td>
+    <td><b>${r.stats.caTotal.toLocaleString('fr-FR')} GNF</b></td>
+    <td class="muted">${r.stats.superviseurs} sup. / ${r.stats.gerants} gér. / ${r.stats.agents} ag.</td>
+    <td class="tag-row">
+      <button class="btn btn-ghost btn-sm" onclick='openReportChart(${JSON.stringify(r.id)})'>Graphique</button>
+      <button class="btn btn-ghost btn-sm" onclick='exportReportExcel(${JSON.stringify(r.id)})'>Excel</button>
+      <button class="btn btn-ghost btn-sm" onclick='exportReportPDF(${JSON.stringify(r.id)})'>PDF</button>
+    </td>
+  </tr>`).join('')}</tbody></table>`;
+}
+function openReportChart(id){
+  const r = DB.reports.find(x=>x.id===id);
+  const {start,end} = periodDateRange(r.periode);
+  const gerantIds = DB.users.filter(u=>u.role==='gerant').map(g=>g.id);
+  const dist = totalsByGerant('ca', gerantIds, d=> d>=start && d<=end);
+  document.getElementById('modalTitle').textContent = `CA par gérant — ${periodeLabel(r.periode)}`;
+  document.getElementById('modalBody').innerHTML = dist.data.every(v=>v===0)
+    ? emptyState('Aucune donnée', 'Aucun CA déclaré sur cette période.')
+    : `<div class="chart-wrap"><canvas id="chart_report_dist"></canvas></div>`;
+  document.getElementById('modalFoot').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>`;
+  openModal();
+  if(!dist.data.every(v=>v===0)) drawChart('chart_report_dist','bar', dist.labels, dist.data, '#FF6600', 'CA (GNF)');
+}
+function reportRows(r){
+  return [
+    ['Indicateur','Valeur'],
+    ['Type de rapport', r.type],
+    ['Période', r.periode],
+    ['CA total (GNF)', r.stats.caTotal],
+    ['Nombre de TDR', r.stats.tdrTotal],
+    ['Nombre de TDA', r.stats.tdaTotal],
+    ['Nombre de LP', r.stats.lpTotal],
+    ['SIM attribuées', r.stats.simsTotal],
+    ['Superviseurs', r.stats.superviseurs],
+    ['Gérants', r.stats.gerants],
+    ['Agents', r.stats.agents],
+    ['Points de vente', r.stats.pdvs],
+  ];
+}
+function exportReportExcel(id){
+  const r = DB.reports.find(x=>x.id===id);
+  exportToExcel(reportRows(r), `rapport-${r.periode}`, 'Rapport');
+}
+function exportReportPDF(id){
+  const r = DB.reports.find(x=>x.id===id);
+  const rows = reportRows(r).slice(1);
+  exportToPDF(`Rapport ${r.type} — ${r.periode}`, `Synthèse des indicateurs de la zone`, ['Indicateur','Valeur'], rows);
+}
+
+/* ---------- RAPPORTS : calcul par période réelle ---------- */
+function periodDateRange(periode){
+  if(periode.startsWith('Y-')){
+    const year = periode.split('-')[1];
+    return { start:`${year}-01-01`, end:`${year}-12-31` };
+  }
+  const [q, year] = periode.split('-');
+  const qn = Number(q.replace('Q',''));
+  const startMonth = (qn-1)*3+1;
+  const endMonth = startMonth+2;
+  const lastDay = new Date(Number(year), endMonth, 0).getDate();
+  return {
+    start: `${year}-${String(startMonth).padStart(2,'0')}-01`,
+    end: `${year}-${String(endMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+  };
+}
+function computeStatsForPeriod(periode){
+  const {start,end} = periodDateRange(periode);
+  const inRange = d => d>=start && d<=end;
+  return {
+    caTotal: DB.ca.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
+    tdrTotal: DB.tdr.filter(e=>inRange(e.date)).length,
+    tdaTotal: DB.tda.filter(e=>inRange(e.date)).length,
+    lpTotal: DB.lp.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
+    simsTotal: DB.sims.filter(s=>s.statut==='attribuee').length,
+    superviseurs: DB.users.filter(u=>u.role==='superviseur').length,
+    gerants: DB.users.filter(u=>u.role==='gerant').length,
+    agents: DB.users.filter(u=>u.role==='agent').length,
+    pdvs: DB.pdvs.length
+  };
+}
+function periodeLabel(periode){
+  if(periode.startsWith('Y-')) return 'Année '+periode.split('-')[1];
+  const [q,y] = periode.split('-');
+  return 'T'+q.replace('Q','')+' '+y;
+}
+
+/* =========================================================================
+   IMPRESSION PDF (A4) & EXPORT JPEG — disponibles sur chaque écran
+   ========================================================================= */
+let printMeta = { title:'Maison Orange', subtitle:'' };
+
+function updatePrintMeta(){
+  const topbar = document.querySelector('#mainContent .topbar');
+  if(!topbar) return;
+  const h1 = topbar.querySelector('h1');
+  const p = topbar.querySelector('p');
+  printMeta.title = h1 ? h1.textContent : 'Maison Orange';
+  printMeta.subtitle = p ? p.textContent : '';
+}
+
+function attachExportToolbar(){
+  updatePrintMeta();
+  const topbar = document.querySelector('#mainContent .topbar');
+  if(!topbar) return;
+  let actions = topbar.querySelector('.panel-actions');
+  if(!actions){
+    actions = document.createElement('div');
+    actions.className = 'panel-actions';
+    topbar.appendChild(actions);
+  }
+  if(!actions.querySelector('.print-export-btn')){
+    const btnPdf = document.createElement('button');
+    btnPdf.className = 'btn btn-ghost btn-sm export-btn print-export-btn';
+    btnPdf.innerHTML = '🖶 PDF (A4)';
+    btnPdf.onclick = printCurrentPage;
+    const btnJpg = document.createElement('button');
+    btnJpg.className = 'btn btn-ghost btn-sm export-btn print-export-btn';
+    btnJpg.innerHTML = '🖼 JPEG';
+    btnJpg.onclick = exportCurrentPageJPEG;
+    actions.appendChild(btnPdf);
+    actions.appendChild(btnJpg);
+  }
+}
+
+function buildPrintableClone(){
+  const source = document.getElementById('mainContent');
+  const clone = source.cloneNode(true);
+  const liveCanvases = source.querySelectorAll('canvas');
+  const cloneCanvases = clone.querySelectorAll('canvas');
+  cloneCanvases.forEach((c,i)=>{
+    const live = liveCanvases[i];
+    const img = document.createElement('img');
+    img.style.width='100%'; img.style.maxWidth='680px'; img.style.display='block'; img.style.margin='0 auto';
+    if(live){ try{ img.src = live.toDataURL('image/png'); }catch(e){} }
+    c.replaceWith(img);
+  });
+  clone.querySelectorAll('button, input, select, textarea').forEach(el=>el.remove());
+  return clone;
+}
+
+function printCurrentPage(){
+  const clone = buildPrintableClone();
+  const win = window.open('', '_blank');
+  if(!win){ toast('Autorisez les fenêtres popup pour imprimer'); return; }
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(printMeta.title)} — Maison Orange</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    @page{ size:A4; margin:16mm 14mm; }
+    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing:border-box; }
+    body{ font-family:'Inter',Arial,sans-serif; color:#1B1B1F; margin:0; -webkit-font-smoothing:antialiased; }
+    .print-header{ display:flex; justify-content:space-between; align-items:flex-end; border-bottom:3px solid #FF6600; padding-bottom:10px; margin-bottom:20px; }
+    .print-brand{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; color:#D14E00; letter-spacing:.04em; text-transform:uppercase; }
+    .print-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:21px; margin:3px 0 3px; color:#1B1B1F; }
+    .print-sub{ font-size:11.5px; color:#555; }
+    .print-meta{ text-align:right; font-size:10px; color:#888; font-family:'IBM Plex Mono',monospace; line-height:1.6; }
+    .topbar{ display:none; }
+    .grid-cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+    .stat-card{ border:1px solid #E7E3DD; border-radius:5px; padding:10px 12px; break-inside:avoid; position:relative; padding-left:14px; }
+    .stat-card::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:#FF6600; }
+    .stat-label{ font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:#666; margin-bottom:5px; }
+    .stat-value{ font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:700; color:#1B1B1F; }
+    .stat-sub{ font-size:9.5px; color:#777; margin-top:3px; }
+    .panel{ border:1px solid #E7E3DD; border-radius:5px; margin-bottom:14px; break-inside:avoid; }
+    .panel-head{ padding:9px 12px; border-bottom:1px solid #E7E3DD; display:flex; justify-content:space-between; align-items:center; }
+    .panel-head h2{ font-family:'Space Grotesk',sans-serif; font-size:13px; margin:0; color:#1B1B1F; }
+    .panel-body{ padding:10px 12px; }
+    table{ width:100%; border-collapse:collapse; font-size:10.5px; }
+    th{ background:#FFE9D9; color:#7A2E00; text-align:left; padding:6px 8px; border-bottom:2px solid #FF6600; text-transform:uppercase; font-size:9px; letter-spacing:.03em; }
+    td{ padding:6px 8px; border-bottom:1px solid #E7E3DD; color:#1B1B1F; }
+    tr{ page-break-inside:avoid; }
+    .badge{ display:inline-block; padding:1px 7px; border-radius:20px; font-size:9px; font-weight:700; text-transform:uppercase; }
+    .badge-ok{ background:#E4F6EB; color:#1F8A4C; }
+    .badge-warn{ background:#FFF3DC; color:#C88A00; }
+    .badge-danger{ background:#FBEAEA; color:#C22B2B; }
+    .badge-locked{ background:#EDEDEF; color:#6A6A72; }
+    .badge-orange{ background:#FFE9D9; color:#D14E00; }
+    .mono{ font-family:'IBM Plex Mono',monospace; }
+    .muted{ color:#666; }
+    .lock-banner{ background:#FFF4E9; border:1px solid #FFD8AE; color:#7A2E00; padding:8px 10px; border-radius:5px; font-size:10.5px; margin-bottom:12px; display:flex; align-items:center; }
+    .day-arc{ display:none; }
+    .empty{ padding:16px; text-align:center; color:#888; font-size:11px; }
+    .hist-item{ border-left:2px solid #FF6600; padding:5px 0 5px 10px; margin-bottom:5px; font-size:10.5px; }
+    .hist-item .h-date{ color:#777; font-family:'IBM Plex Mono',monospace; font-size:9.5px; }
+    .org-chart, .org-card, .org-name, .org-role{ color:#1B1B1F; }
+    .org-root{ background:#1B1B1F !important; color:#fff !important; }
+    .org-root .org-name, .org-root .org-role{ color:#fff !important; }
+    .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .footer-note{ margin-top:24px; padding-top:10px; border-top:1px solid #E7E3DD; font-size:9px; color:#999; }
+  </style></head><body>
+  <div class="print-header">
+    <div>
+      <div class="print-brand">Maison Orange</div>
+      <div class="print-title">${escapeHtml(printMeta.title)}</div>
+      <div class="print-sub">${escapeHtml(printMeta.subtitle)}</div>
+    </div>
+    <div class="print-meta">Généré le ${fmtDate(nowISO())}<br>Par ${escapeHtml(SESSION.prenom+' '+SESSION.nom)}<br>${escapeHtml(roleLabel(SESSION.role))}</div>
+  </div>
+  ${clone.innerHTML}
+  <div class="footer-note">Document généré automatiquement par la console de gestion Maison Orange, à des fins de suivi et de justification.</div>
+  <scr` + `ipt>window.onload=()=>setTimeout(()=>window.print(),300);</scr` + `ipt>
+  </body></html>`;
+  win.document.write(html);
+  win.document.close();
+}
+
+async function exportCurrentPageJPEG(){
+  if(typeof html2canvas==='undefined'){ toast('Bibliothèque de capture indisponible'); return; }
+  const target = document.getElementById('mainContent');
+  const hidden = Array.from(target.querySelectorAll('button, input, select, textarea'));
+  hidden.forEach(el=> el.style.visibility='hidden');
+  toast('Génération de l\'image…');
+  try{
+    const canvas = await html2canvas(target, { backgroundColor:'#F7F5F2', scale:2, useCORS:true });
+    const link = document.createElement('a');
+    link.download = `maison-orange-${currentView}-${todayStr()}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 0.92);
+    link.click();
+    toast('Image JPEG téléchargée');
+  }catch(e){
+    console.error(e); toast('Erreur lors de la génération de l\'image');
+  }finally{
+    hidden.forEach(el=> el.style.visibility='');
+  }
+}
+
+/* =========================================================================
+   MODAL HELPERS
+   ========================================================================= */
+function openModal(){ document.getElementById('modalBg').classList.add('active'); }
+function closeModal(){ document.getElementById('modalBg').classList.remove('active'); }
+document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('loginCode').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+(async function init(){
+  await loadDB();
+})();
+</script>
+</body>
+</html>

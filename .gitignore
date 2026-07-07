@@ -1,0 +1,12 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+ui-debug.log
+
+# Dependances (si vous ajoutez des outils plus tard)
+node_modules/
+
+# Systeme
+.DS_Store
+Thumbs.db
