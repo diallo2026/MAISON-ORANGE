@@ -354,7 +354,14 @@ function drawChart(canvasId, type, labels, data, color, labelText){
     }
   });
 }
-function unitFor(type){ return type==='lp' ? 'lignes' : 'GNF'; }
+function unitFor(type){
+  if(type==='lp') return 'présences';
+  if(type==='tdr' || type==='tda') return '%';
+  return 'GNF';
+}
+function typeFullLabel(type){
+  return {ca:'Chiffre d\'affaires', tdr:'Taux de rupture', tda:'Taux d\'inactivité', lp:'Liste des présences'}[type];
+}
 function typeLabel(type){ return {ca:'CA', tdr:'TDR', tda:'TDA', lp:'LP'}[type]; }
 function monthKey(dateStr){ return (dateStr||todayStr()).slice(0,7); }
 function objKey(type, gerantId, ym){ return `${type}_${gerantId}_${ym}`; }
@@ -515,7 +522,7 @@ function seedDB(){
     ca: [], // chiffre d'affaires entries {id, gerantId, date, montant, notes, superviseurId}
     tdr: [], // {id, gerantId, date, montant, ref, superviseurId}
     tda: [], // {id, gerantId, date, montant, ref, superviseurId}
-    lp: [],  // lignes de production / lignes prépayées {id, gerantId, date, quantite, superviseurId}
+    lp: [],  // LP — liste des présences {id, gerantId, date, quantite, superviseurId}
     activityLog: [], // {id, ts, userId, userNom, role, action, details}
     reports: [], // generated report snapshots
     objectifs: {} // { "type_gerantId_YYYY-MM": montantCible }
@@ -676,6 +683,7 @@ function buildNav(){
       const b = document.createElement('button');
       b.innerHTML = `<span class="dot"></span> ${it.label}`;
       b.dataset.view = it.id;
+      if(['ca','tdr','tda','lp'].includes(it.id)) b.title = typeFullLabel(it.id);
       b.onclick = ()=> navigate(it.id);
       nav.appendChild(b);
     });
@@ -703,9 +711,9 @@ function render(){
     pdv: renderPDV,
     sims: renderSims,
     ca: renderCA,
-    tdr: ()=>renderMoveTable('tdr','TDR — Transferts de recharge','Enregistrez et suivez les opérations TDR des gérants.'),
-    tda: ()=>renderMoveTable('tda','TDA — Transferts d\'argent','Enregistrez et suivez les opérations TDA des gérants.'),
-    lp: ()=>renderMoveTable('lp','LP — Lignes prépayées','Suivi des lignes prépayées activées par les gérants.'),
+    tdr: ()=>renderMoveTable('tdr','TDR — Taux de rupture','Suivi du taux de rupture de stock constaté chez les gérants.'),
+    tda: ()=>renderMoveTable('tda','TDA — Taux d\'inactivité','Suivi du taux d\'inactivité des lignes chez les gérants.'),
+    lp: ()=>renderMoveTable('lp','LP — Liste des présences','Suivi de la liste des présences des gérants.'),
     daily: renderDaily,
     audit: renderAudit,
     reports: renderReports,
@@ -1767,7 +1775,8 @@ function renderMoveTable(type, title, sub){
   afterRender();
 }
 function exportMoveExcel(type, title){
-  const rows = [['Date','Gérant','Superviseur','Montant','Référence','Notes']];
+  const colLabel = type==='ca' ? 'Montant (GNF)' : type==='lp' ? 'Présences' : 'Taux (%)';
+  const rows = [['Date','Gérant','Superviseur',colLabel,'Référence','Notes']];
   DB[type].forEach(e=>{
     const gerant = DB.users.find(u=>u.id===e.gerantId);
     const sup = DB.users.find(u=>u.id===e.superviseurId);
@@ -1779,7 +1788,8 @@ function exportMoveExcel(type, title){
 function moveTable(list, type){
   if(list.length===0) return emptyState('Aucune donnée','Aucune déclaration enregistrée pour le moment.');
   list = [...list].sort((a,b)=> new Date(b.date)-new Date(a.date));
-  return `<table><thead><tr><th>Date</th><th>Gérant</th><th>Superviseur</th><th>Montant</th><th>Référence</th><th>Notes</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
+  const colLabel = type==='ca' ? 'Montant' : type==='lp' ? 'Présences' : 'Taux';
+  return `<table><thead><tr><th>Date</th><th>Gérant</th><th>Superviseur</th><th>${colLabel}</th><th>Référence</th><th>Notes</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
   ${list.map(e=>{
     const gerant = DB.users.find(u=>u.id===e.gerantId);
     const sup = DB.users.find(u=>u.id===e.superviseurId);
@@ -1787,7 +1797,7 @@ function moveTable(list, type){
       <td class="mono">${e.date}</td>
       <td>${gerant? gerant.prenom+' '+gerant.nom:'—'}</td>
       <td class="muted">${sup? sup.prenom+' '+sup.nom:'—'}</td>
-      <td><b>${Number(e.montant||0).toLocaleString('fr-FR')} GNF</b></td>
+      <td><b>${Number(e.montant||0).toLocaleString('fr-FR')} ${unitFor(type)}</b></td>
       <td class="mono muted">${escapeHtml(e.ref||'—')}</td>
       <td class="muted">${escapeHtml(e.notes||'')}</td>
       ${SESSION.role==='responsable_zone'?`<td><button class="btn btn-ghost btn-sm" onclick="deleteEntry('${type}','${e.id}')">Suppr.</button></td>`:''}
@@ -1796,11 +1806,16 @@ function moveTable(list, type){
 }
 
 function openDeclare(type){
-  const labels = {ca:'Chiffre d\'affaires', tdr:'TDR', tda:'TDA', lp:'LP'};
-  document.getElementById('modalTitle').textContent = `Déclarer — ${labels[type]}`;
+  const fieldLabel = {
+    ca: 'Montant du CA (GNF)',
+    tdr: 'Taux de rupture (%)',
+    tda: 'Taux d\'inactivité (%)',
+    lp: 'Nombre de présences'
+  }[type];
+  document.getElementById('modalTitle').textContent = `Déclarer — ${typeFullLabel(type)}`;
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>Date</label><input type="date" id="dc_date" value="${todayStr()}"></div>
-    <div class="field"><label>Montant / quantité</label><input type="number" id="dc_montant" placeholder="0"></div>
+    <div class="field"><label>${fieldLabel}</label><input type="number" id="dc_montant" placeholder="0"></div>
     <div class="field"><label>Référence</label><input type="text" id="dc_ref" placeholder="N° reçu, transaction…"></div>
     <div class="field"><label>Notes</label><textarea id="dc_notes" rows="2"></textarea></div>
   `;
@@ -1992,9 +2007,9 @@ function runComparison(){
       <thead><tr><th>Indicateur</th><th>${periodeLabel(pa)}</th><th>${periodeLabel(pb)}</th><th>Évolution</th></tr></thead>
       <tbody>
         <tr><td>CA total</td><td><b>${sa.caTotal.toLocaleString('fr-FR')} GNF</b></td><td><b>${sb.caTotal.toLocaleString('fr-FR')} GNF</b></td><td>${deltaHtml(sa.caTotal,sb.caTotal)}</td></tr>
-        <tr><td>TDR (nb. opérations)</td><td>${sa.tdrTotal}</td><td>${sb.tdrTotal}</td><td>${deltaHtml(sa.tdrTotal,sb.tdrTotal)}</td></tr>
-        <tr><td>TDA (nb. opérations)</td><td>${sa.tdaTotal}</td><td>${sb.tdaTotal}</td><td>${deltaHtml(sa.tdaTotal,sb.tdaTotal)}</td></tr>
-        <tr><td>LP (lignes)</td><td>${sa.lpTotal.toLocaleString('fr-FR')}</td><td>${sb.lpTotal.toLocaleString('fr-FR')}</td><td>${deltaHtml(sa.lpTotal,sb.lpTotal)}</td></tr>
+        <tr><td>TDR (déclarations)</td><td>${sa.tdrTotal}</td><td>${sb.tdrTotal}</td><td>${deltaHtml(sa.tdrTotal,sb.tdrTotal)}</td></tr>
+        <tr><td>TDA (déclarations)</td><td>${sa.tdaTotal}</td><td>${sb.tdaTotal}</td><td>${deltaHtml(sa.tdaTotal,sb.tdaTotal)}</td></tr>
+        <tr><td>LP (présences)</td><td>${sa.lpTotal.toLocaleString('fr-FR')}</td><td>${sb.lpTotal.toLocaleString('fr-FR')}</td><td>${deltaHtml(sa.lpTotal,sb.lpTotal)}</td></tr>
       </tbody>
     </table>
     <div class="chart-wrap" style="margin-top:16px;"><canvas id="chart_cmp"></canvas></div>
@@ -2068,9 +2083,9 @@ function reportRows(r){
     ['Type de rapport', r.type],
     ['Période', r.periode],
     ['CA total (GNF)', r.stats.caTotal],
-    ['Nombre de TDR', r.stats.tdrTotal],
-    ['Nombre de TDA', r.stats.tdaTotal],
-    ['Nombre de LP', r.stats.lpTotal],
+    ['Déclarations TDR (taux de rupture)', r.stats.tdrTotal],
+    ['Déclarations TDA (taux d\'inactivité)', r.stats.tdaTotal],
+    ['Total présences (LP)', r.stats.lpTotal],
     ['SIM attribuées', r.stats.simsTotal],
     ['Superviseurs', r.stats.superviseurs],
     ['Gérants', r.stats.gerants],
