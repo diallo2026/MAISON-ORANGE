@@ -81,6 +81,8 @@
   aside{
     background:var(--ink);color:#fff;padding:20px 14px;display:flex;flex-direction:column;
     position:sticky;top:0;height:100vh;
+    border-left:5px solid var(--orange);
+    box-shadow:inset 6px 0 14px -10px rgba(255,102,0,.5);
   }
   .side-brand{display:flex;align-items:center;gap:9px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:14px;}
   .side-brand .brand-mark{width:28px;height:28px;font-size:13px;}
@@ -224,6 +226,12 @@
   .pdv-card-stats > div{display:flex;flex-direction:column;}
   .pdv-stat-val{font-family:var(--disp);font-weight:700;font-size:13px;}
   .pdv-stat-lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-top:1px;}
+
+  /* Photo de profil */
+  .photo-upload-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px;}
+  .photo-preview{width:76px;height:76px;border-radius:50%;object-fit:cover;border:2px solid var(--line);background:#EFEBE4;}
+  .avatar-sm{width:28px;height:28px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px;border:1px solid var(--line);background:#EFEBE4;}
+  .name-cell{display:flex;align-items:center;}
 </style>
 </head>
 <body>
@@ -1002,6 +1010,7 @@ function openUserProfile(id){
 
   document.getElementById('modalTitle').textContent = `${u.prenom} ${u.nom}`;
   document.getElementById('modalBody').innerHTML = `
+    <div style="text-align:center;margin-bottom:12px;"><img src="${u.photo || defaultAvatar()}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--line);"></div>
     <div class="grid-cards" style="margin-bottom:14px;">
       <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Rôle</div><div class="stat-value" style="font-size:16px;">${roleLabel(u.role)}</div></div>
       <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Statut</div><div class="stat-value" style="font-size:16px;">${u.active?'Actif':'Suspendu'}</div></div>
@@ -1039,7 +1048,7 @@ function userTable(list, role){
   ${list.map(u=>{
     const creator = DB.users.find(x=>x.id===u.createdBy);
     return `<tr>
-      <td>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</td>
+      <td><div class="name-cell"><img class="avatar-sm" src="${u.photo || defaultAvatar()}">${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</div></td>
       <td class="mono">${u.code}</td>
       <td class="muted">${creator? (creator.prenom+' '+creator.nom) : '—'}</td>
       <td>${u.active? '<span class="badge badge-ok">Actif</span>' : '<span class="badge badge-danger">Suspendu</span>'}</td>
@@ -1061,9 +1070,16 @@ function userTable(list, role){
 function openCreateUser(role, presetSupervisor){
   const code = role==='superviseur' ? nextCode('SP') : (role==='agent'?nextCode('AG'): role==='gerant'?nextCode('GE'):'');
   const pass = genPass();
-  const supervisorOptions = role==='gerant' ? DB.users.filter(u=>u.role==='superviseur' && u.active) : [];
   document.getElementById('modalTitle').textContent = `Créer un ${roleLabel(role).toLowerCase()}`;
   document.getElementById('modalBody').innerHTML = `
+    <div class="field" style="text-align:center;">
+      <label>Photo</label>
+      <div class="photo-upload-wrap">
+        <img id="nu_photo_preview" class="photo-preview" src="${defaultAvatar()}">
+        <input type="file" id="nu_photo_file" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this,'nu_photo_preview')">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('nu_photo_file').click()">Choisir une photo</button>
+      </div>
+    </div>
     <div class="grid-2">
       <div class="field"><label>Prénom</label><input type="text" id="nu_prenom"></div>
       <div class="field"><label>Nom</label><input type="text" id="nu_nom"></div>
@@ -1071,6 +1087,8 @@ function openCreateUser(role, presetSupervisor){
     <div class="field"><label>Téléphone</label><input type="text" id="nu_tel"></div>
     ${role==='gerant' ? `<div class="field"><label>Point de vente</label>
       <select id="nu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
+    ${role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
+      <select id="nu_superviseur"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
       <div class="field"><label>Code d'accès (auto)</label><input type="text" id="nu_code" value="${code}" class="mono"></div>
       <div class="field"><label>Mot de passe (auto)</label><input type="text" id="nu_pass" value="${pass}" class="mono"></div>
@@ -1090,6 +1108,17 @@ function openCreateUser(role, presetSupervisor){
   openModal();
 }
 
+function defaultAvatar(){
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" fill="#EFEBE4"/><circle cx="40" cy="30" r="14" fill="#C7C0B4"/><ellipse cx="40" cy="66" rx="24" ry="16" fill="#C7C0B4"/></svg>`);
+}
+function handlePhotoSelect(input, previewId){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById(previewId).src = e.target.result; };
+  reader.readAsDataURL(file);
+}
+
 function nextCode(prefix){
   const existing = DB.users.filter(u=>u.code.startsWith(prefix+'-')).map(u=>parseInt(u.code.split('-')[1])||0);
   const n = (existing.length? Math.max(...existing):0)+1;
@@ -1105,14 +1134,18 @@ async function saveNewUser(role){
   const modif = document.getElementById('nu_modif').checked;
   const suppr = document.getElementById('nu_suppr').checked;
   const pdvId = role==='gerant' ? document.getElementById('nu_pdv')?.value : null;
+  const superviseurId = role==='agent' ? document.getElementById('nu_superviseur')?.value : null;
+  const photoEl = document.getElementById('nu_photo_preview');
+  const photo = photoEl && photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : null;
 
   if(!prenom || !nom || !code || !pass){ toast('Veuillez remplir tous les champs obligatoires'); return; }
   if(DB.users.some(u=>u.code.toLowerCase()===code.toLowerCase())){ toast('Ce code existe déjà'); return; }
 
   const newUser = {
     id: uid(role.substring(0,2).toUpperCase()),
-    role, code, pass, nom, prenom, tel,
+    role, code, pass, nom, prenom, tel, photo,
     pdvId: pdvId || null,
+    superviseurId: superviseurId || null,
     createdAt: nowISO(), createdBy: SESSION.id, active:true,
     perms:{modifier:modif, supprimer:suppr}
   };
@@ -1129,11 +1162,23 @@ function openEditUser(id){
   if(!u) return;
   document.getElementById('modalTitle').textContent = 'Modifier le compte';
   document.getElementById('modalBody').innerHTML = `
+    <div class="field" style="text-align:center;">
+      <label>Photo</label>
+      <div class="photo-upload-wrap">
+        <img id="eu_photo_preview" class="photo-preview" src="${u.photo || defaultAvatar()}">
+        <input type="file" id="eu_photo_file" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this,'eu_photo_preview')">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('eu_photo_file').click()">Changer la photo</button>
+      </div>
+    </div>
     <div class="grid-2">
       <div class="field"><label>Prénom</label><input type="text" id="eu_prenom" value="${escapeHtml(u.prenom)}"></div>
       <div class="field"><label>Nom</label><input type="text" id="eu_nom" value="${escapeHtml(u.nom)}"></div>
     </div>
     <div class="field"><label>Téléphone</label><input type="text" id="eu_tel" value="${escapeHtml(u.tel||'')}"></div>
+    ${u.role==='gerant' ? `<div class="field"><label>Point de vente</label>
+      <select id="eu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}" ${p.id===u.pdvId?'selected':''}>${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
+    ${u.role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
+      <select id="eu_superviseur"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
       <div class="field"><label>Code d'accès</label><input type="text" id="eu_code" value="${u.code}" class="mono"></div>
       <div class="field"><label>Mot de passe</label><input type="text" id="eu_pass" value="${u.pass}" class="mono"></div>
@@ -1156,6 +1201,12 @@ async function saveEditUser(id){
   u.tel = document.getElementById('eu_tel').value.trim();
   u.code = newCode;
   u.pass = document.getElementById('eu_pass').value.trim();
+  const photoEl = document.getElementById('eu_photo_preview');
+  if(photoEl) u.photo = photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : u.photo;
+  const pdvSel = document.getElementById('eu_pdv');
+  if(pdvSel) u.pdvId = pdvSel.value || null;
+  const supSel = document.getElementById('eu_superviseur');
+  if(supSel) u.superviseurId = supSel.value || null;
   logAction('Modification de compte', `${u.code} mis à jour`);
   await saveDB();
   closeModal();
