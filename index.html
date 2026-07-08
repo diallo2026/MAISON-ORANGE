@@ -27,6 +27,10 @@
     --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
     --sans: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     --disp: 'Space Grotesk', 'Inter', sans-serif;
+    --side-bg: linear-gradient(180deg, #FF6600, #D14E00);
+    --side-text: #FFFFFF;
+    --side-text-soft: rgba(255,255,255,.75);
+    --side-active-bg: rgba(0,0,0,.22);
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);}
@@ -79,27 +83,26 @@
   #app{display:none;min-height:100vh;grid-template-columns:230px 1fr;}
   #app.active{display:grid;}
   aside{
-    background:var(--ink);color:#fff;padding:20px 14px;display:flex;flex-direction:column;
+    background:var(--side-bg);color:var(--side-text);padding:20px 14px;display:flex;flex-direction:column;
     position:sticky;top:0;height:100vh;
-    border-left:5px solid var(--orange);
-    box-shadow:inset 6px 0 14px -10px rgba(255,102,0,.5);
   }
-  .side-brand{display:flex;align-items:center;gap:9px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:14px;}
-  .side-brand .brand-mark{width:28px;height:28px;font-size:13px;}
-  .side-brand-text{font-family:var(--disp);font-weight:700;font-size:14.5px;}
-  .side-role{font-size:10px;color:#FF9E52;text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
+  .side-brand{display:flex;align-items:center;gap:9px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.22);margin-bottom:14px;}
+  .side-brand .brand-mark{width:28px;height:28px;font-size:13px;overflow:hidden;padding:0;}
+  .side-brand .brand-mark img{width:100%;height:100%;object-fit:cover;border-radius:8px;}
+  .side-brand-text{font-family:var(--disp);font-weight:700;font-size:14.5px;color:var(--side-text);}
+  .side-role{font-size:10px;color:var(--side-text-soft);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
   nav{flex:1;display:flex;flex-direction:column;gap:2px;}
-  nav .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#8A8A93;margin:14px 8px 6px;}
+  nav .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--side-text-soft);margin:14px 8px 6px;}
   nav button{
-    all:unset;cursor:pointer;padding:9px 10px;border-radius:5px;font-size:13.5px;color:#D8D8DC;
+    all:unset;cursor:pointer;padding:9px 10px;border-radius:5px;font-size:13.5px;color:var(--side-text-soft);
     display:flex;align-items:center;gap:9px;transition:.12s;
   }
-  nav button:hover{background:rgba(255,255,255,.06);color:#fff;}
-  nav button.active{background:var(--orange);color:#fff;font-weight:600;}
-  nav button .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;}
-  .side-user{border-top:1px solid rgba(255,255,255,.1);padding-top:12px;margin-top:8px;}
-  .side-user-name{font-size:13px;font-weight:600;}
-  .side-user-code{font-size:11px;color:#9A9AA2;font-family:var(--mono);}
+  nav button:hover{background:rgba(255,255,255,.14);color:var(--side-text);}
+  nav button.active{background:var(--side-active-bg);color:var(--side-text);font-weight:600;}
+  nav button .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.6;}
+  .side-user{border-top:1px solid rgba(255,255,255,.22);padding-top:12px;margin-top:8px;}
+  .side-user-name{font-size:13px;font-weight:600;color:var(--side-text);}
+  .side-user-code{font-size:11px;color:var(--side-text-soft);font-family:var(--mono);}
   .side-logout{margin-top:10px;width:100%;}
 
   main{padding:24px 30px 60px;overflow-x:hidden;}
@@ -227,6 +230,17 @@
   .pdv-stat-val{font-family:var(--disp);font-weight:700;font-size:13px;}
   .pdv-stat-lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-top:1px;}
 
+  /* Paramètres — thèmes & logo */
+  .theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .theme-swatch{border:2px solid var(--line);border-radius:8px;padding:10px;cursor:pointer;transition:.12s;}
+  .theme-swatch:hover{border-color:var(--orange);}
+  .theme-swatch.active{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,102,0,.15);}
+  .theme-swatch-bar{height:34px;border-radius:5px;margin-bottom:8px;}
+  .theme-swatch-name{font-size:12px;font-weight:600;text-align:center;}
+  .logo-upload-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .logo-preview{width:72px;height:72px;border-radius:14px;object-fit:cover;border:1.5px solid var(--line);background:#FCFBFA;}
+  .settings-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap;}
+
   /* Photo de profil */
   .photo-upload-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px;}
   .photo-preview{width:76px;height:76px;border-radius:50%;object-fit:cover;border:2px solid var(--line);background:#EFEBE4;}
@@ -241,7 +255,7 @@
   <div class="login-card">
     <div class="brand">
       <div class="brand-mark">MO</div>
-      <div class="brand-name">Maison Orange</div>
+      <div class="brand-name" id="loginBrandName">Maison Orange</div>
     </div>
     <p class="brand-sub">Console de gestion de zone</p>
     <div class="login-err" id="loginErr"></div>
@@ -268,7 +282,7 @@
     <div class="side-brand">
       <div class="brand-mark">MO</div>
       <div>
-        <div class="side-brand-text">Maison Orange</div>
+        <div class="side-brand-text" id="sideBrandText">Maison Orange</div>
         <div class="side-role" id="sideRoleLabel">—</div>
       </div>
     </div>
@@ -371,6 +385,24 @@ function typeFullLabel(type){
   return {ca:'Chiffre d\'affaires', tdr:'Taux de rupture', tda:'Taux d\'inactivité', lp:'Liste des présences'}[type];
 }
 function typeLabel(type){ return {ca:'CA', tdr:'TDR', tda:'TDA', lp:'LP'}[type]; }
+
+/* ---------- THEMES DE LA SIDEBAR ---------- */
+const THEMES = [
+  { id:'orange', nom:'Orange (défaut)', bg:'linear-gradient(180deg, #FF6600, #D14E00)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.22)' },
+  { id:'nuit',   nom:'Nuit',            bg:'linear-gradient(180deg, #1B1B1F, #2A2A30)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.65)', activeBg:'#FF6600' },
+  { id:'ardoise',nom:'Ardoise',         bg:'linear-gradient(180deg, #33414D, #24303A)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.7)',  activeBg:'#FF6600' },
+  { id:'vert',   nom:'Vert forêt',      bg:'linear-gradient(180deg, #1F6B45, #16502F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)' },
+  { id:'bordeaux',nom:'Bordeaux',       bg:'linear-gradient(180deg, #7A2E2E, #591F1F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)' },
+  { id:'clair',  nom:'Clair',           bg:'linear-gradient(180deg, #FFFFFF, #F1EDE6)', text:'#1B1B1F', textSoft:'#6B6B72',              activeBg:'#FFE1C2' },
+];
+function applyTheme(themeId){
+  const t = THEMES.find(x=>x.id===themeId) || THEMES[0];
+  const root = document.documentElement.style;
+  root.setProperty('--side-bg', t.bg);
+  root.setProperty('--side-text', t.text);
+  root.setProperty('--side-text-soft', t.textSoft);
+  root.setProperty('--side-active-bg', t.activeBg);
+}
 function monthKey(dateStr){ return (dateStr||todayStr()).slice(0,7); }
 function objKey(type, gerantId, ym){ return `${type}_${gerantId}_${ym}`; }
 function getObjectif(type, gerantId, ym){ return Number(DB.objectifs[objKey(type,gerantId,ym)] || 0); }
@@ -412,7 +444,7 @@ function objectifProgressHtml(type, gerantId){
 function openObjectifsModal(type){
   const scope = SESSION.role==='responsable_zone'
     ? DB.users.filter(u=>u.role==='gerant')
-    : DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id);
+    : DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
   const ym = todayStr().slice(0,7);
   document.getElementById('modalTitle').textContent = `Objectifs ${typeLabel(type)} — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}`;
   document.getElementById('modalBody').innerHTML = scope.length===0 ? emptyState('Aucun gérant','Créez un gérant avant de définir des objectifs.') :
@@ -504,7 +536,7 @@ function exportToPDF(title, subtitle, headers, rows){
 async function loadDB(){
   try{
     const res = await window.storage.get('db', true);
-    if(res && res.value){ DB = JSON.parse(res.value); if(!DB.objectifs) DB.objectifs={}; return; }
+    if(res && res.value){ DB = JSON.parse(res.value); if(!DB.objectifs) DB.objectifs={}; if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:''}; if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange'; return; }
   }catch(e){ /* not found */ }
   DB = seedDB();
   await saveDB();
@@ -533,7 +565,15 @@ function seedDB(){
     lp: [],  // LP — liste des présences {id, gerantId, date, quantite, superviseurId}
     activityLog: [], // {id, ts, userId, userNom, role, action, details}
     reports: [], // generated report snapshots
-    objectifs: {} // { "type_gerantId_YYYY-MM": montantCible }
+    objectifs: {}, // { "type_gerantId_YYYY-MM": montantCible }
+    settings: {
+      logo: null,
+      themeId: 'orange',
+      nomZone: 'Maison Orange',
+      adresse: '',
+      contactTel: '',
+      contactEmail: ''
+    }
   };
 }
 
@@ -585,6 +625,8 @@ async function doLogin(){
   document.getElementById('sideUserName').textContent = u.prenom+' '+u.nom;
   document.getElementById('sideUserCode').textContent = u.code;
   document.getElementById('sideRoleLabel').textContent = roleLabel(u.role);
+  applyTheme(DB.settings.themeId || 'orange');
+  applyBranding();
   navigate(defaultViewForRole(u.role));
 }
 
@@ -634,6 +676,9 @@ function navItems(role){
         {id:'daily', label:'Activité journalière'},
         {id:'audit', label:'Journal d\'audit'},
         {id:'reports', label:'Rapports annuel/trimestriel'},
+      ]},
+      {sec:'Administration', items:[
+        {id:'settings', label:'⚙ Paramètres'},
       ]},
     ];
   }
@@ -727,6 +772,7 @@ function render(){
     reports: renderReports,
     gerants: renderGerants,
     accessSup: renderAccessSup,
+    settings: renderSettings,
   };
   main.innerHTML='';
   (renderers[currentView] || renderDashboard)();
@@ -788,7 +834,7 @@ function renderDashboard(){
     `;
     afterRender = ()=> drawChart('dash_trend','line', trend.labels, trend.data, '#FF6600', 'CA (GNF)');
   } else if(role==='superviseur'){
-    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id);
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
     const todayCA = DB.ca.filter(c=>isToday(c.date) && c.superviseurId===SESSION.id);
     const todayMoves = DB.activityLog.filter(l=> isToday(l.ts) && myGerants.some(g=>g.id===l.userId));
     statsHtml = cardsRow([
@@ -842,7 +888,7 @@ function recentActivityTable(){
   let logs = [...DB.activityLog].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
   if(SESSION.role==='superviseur'){
     // superviseur : uniquement logs du jour, de son équipe + lui-même
-    const teamIds = DB.users.filter(u=>u.createdBy===SESSION.id).map(u=>u.id).concat([SESSION.id]);
+    const teamIds = DB.users.filter(u=>u.superviseurId===SESSION.id || u.createdBy===SESSION.id).map(u=>u.id).concat([SESSION.id]);
     logs = logs.filter(l=> isToday(l.ts) && teamIds.includes(l.userId));
   } else if(SESSION.role==='gerant' || SESSION.role==='agent'){
     logs = logs.filter(l=> l.userId===SESSION.id);
@@ -861,6 +907,163 @@ function emptyState(title,sub){
 /* =========================================================================
    PERSONNEL (Responsable de zone : créer superviseurs + agents)
    ========================================================================= */
+/* =========================================================================
+   PARAMETRES (Responsable de zone uniquement)
+   ========================================================================= */
+function renderSettings(){
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `
+    <div class="topbar"><div><h1>⚙ Paramètres</h1><p>Logo, thème, coordonnées de la zone, et gestion centralisée du personnel.</p></div></div>
+    <div class="settings-tabs">
+      <button class="tab-btn active" data-stab="identite" onclick="switchSettingsTab('identite')">Identité & thème</button>
+      <button class="tab-btn" data-stab="contacts" onclick="switchSettingsTab('contacts')">Adresse & contacts</button>
+      <button class="tab-btn" data-stab="creation" onclick="switchSettingsTab('creation')">Créer du personnel</button>
+      <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des gérants</button>
+    </div>
+    <div id="settingsTabWrap">${settingsIdentiteView()}</div>
+  `;
+}
+function switchSettingsTab(tab){
+  document.querySelectorAll('[data-stab]').forEach(b=>b.classList.toggle('active', b.dataset.stab===tab));
+  const wrap = document.getElementById('settingsTabWrap');
+  const views = { identite: settingsIdentiteView, contacts: settingsContactsView, creation: settingsCreationView, codes: settingsCodesView };
+  wrap.innerHTML = views[tab]();
+}
+
+function settingsIdentiteView(){
+  return `
+    <div class="panel">
+      <div class="panel-head"><h2>Identité de la Maison Orange</h2></div>
+      <div class="panel-body">
+        <div class="field"><label>Nom affiché de l'organisation</label>
+          <input type="text" id="set_nomzone" value="${escapeHtml(DB.settings.nomZone||'Maison Orange')}"></div>
+        <div class="logo-upload-wrap">
+          <img id="settings_logo_preview" class="logo-preview" src="${DB.settings.logo || defaultAvatar()}">
+          <input type="file" id="settings_logo_file" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this,'settings_logo_preview')">
+          <div class="tag-row">
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('settings_logo_file').click()">Choisir un logo</button>
+            <button class="btn btn-primary btn-sm" onclick="saveLogo()">Enregistrer l'identité</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Thème de couleurs</h2></div>
+      <div class="panel-body">
+        <div class="theme-grid">
+          ${THEMES.map(t=>`
+            <div class="theme-swatch ${DB.settings.themeId===t.id?'active':''}" onclick="chooseTheme('${t.id}')">
+              <div class="theme-swatch-bar" style="background:${t.bg};"></div>
+              <div class="theme-swatch-name">${t.nom}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+async function saveLogo(){
+  DB.settings.nomZone = document.getElementById('set_nomzone').value.trim() || 'Maison Orange';
+  const img = document.getElementById('settings_logo_preview');
+  if(img && img.src.startsWith('data:image') && !img.src.includes('svg+xml')){
+    DB.settings.logo = img.src;
+  }
+  logAction('Identité de zone modifiée', DB.settings.nomZone);
+  await saveDB();
+  toast('Identité mise à jour');
+  applyBranding();
+}
+async function chooseTheme(themeId){
+  DB.settings.themeId = themeId;
+  applyTheme(themeId);
+  logAction('Thème modifié', themeId);
+  await saveDB();
+  toast('Thème appliqué');
+  render();
+}
+
+function settingsContactsView(){
+  const s = DB.settings;
+  return `
+    <div class="panel">
+      <div class="panel-head"><h2>Adresse & contacts de la zone</h2></div>
+      <div class="panel-body">
+        <div class="field"><label>Adresse</label><input type="text" id="set_adresse" value="${escapeHtml(s.adresse||'')}" placeholder="Ex : Quartier Almamya, Conakry"></div>
+        <div class="grid-2">
+          <div class="field"><label>Téléphone de contact</label><input type="text" id="set_tel" value="${escapeHtml(s.contactTel||'')}"></div>
+          <div class="field"><label>Email de contact</label><input type="text" id="set_email" value="${escapeHtml(s.contactEmail||'')}"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveContacts()">Enregistrer</button>
+      </div>
+    </div>
+  `;
+}
+async function saveContacts(){
+  DB.settings.adresse = document.getElementById('set_adresse').value.trim();
+  DB.settings.contactTel = document.getElementById('set_tel').value.trim();
+  DB.settings.contactEmail = document.getElementById('set_email').value.trim();
+  logAction('Coordonnées de zone modifiées', '');
+  await saveDB();
+  toast('Coordonnées enregistrées');
+}
+
+function settingsCreationView(){
+  return `
+    <div class="panel">
+      <div class="panel-head"><h2>Créer un superviseur ou un agent</h2></div>
+      <div class="panel-body">
+        <p class="muted" style="font-size:12.5px;margin-top:0;">Depuis les paramètres, créez rapidement du personnel sans quitter cet écran.</p>
+        <div class="tag-row">
+          <button class="btn btn-primary btn-sm" onclick="openCreateUser('superviseur')">+ Superviseur</button>
+          <button class="btn btn-ghost btn-sm" onclick="openCreateUser('agent')">+ Agent</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Créer un gérant</h2></div>
+      <div class="panel-body">
+        <p class="muted" style="font-size:12.5px;margin-top:0;">Le responsable de zone peut également créer directement un gérant (normalement créé par un superviseur).</p>
+        <button class="btn btn-primary btn-sm" onclick="openCreateUser('gerant')">+ Gérant</button>
+      </div>
+    </div>
+  `;
+}
+
+function settingsCodesView(){
+  const gerants = DB.users.filter(u=>u.role==='gerant');
+  return `
+    <div class="panel">
+      <div class="panel-head"><h2>Codes d'accès des gérants</h2></div>
+      <div class="panel-body">
+        ${gerants.length===0 ? emptyState('Aucun gérant','Créez un gérant depuis l\'onglet « Créer du personnel ».') : `
+        <table><thead><tr><th>Gérant</th><th>Code</th><th>Mot de passe</th><th>Statut</th><th></th></tr></thead><tbody>
+        ${gerants.map(g=>`<tr>
+          <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
+          <td class="mono">${g.code}</td>
+          <td class="mono">${g.pass}</td>
+          <td>${g.active?'<span class="badge badge-ok">Actif</span>':'<span class="badge badge-danger">Suspendu</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="openEditUser('${g.id}')">Modifier le code</button></td>
+        </tr>`).join('')}
+        </tbody></table>`}
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- Application du logo/branding sur toute l'interface ---------- */
+function applyBranding(){
+  const marks = document.querySelectorAll('.brand-mark');
+  marks.forEach(m=>{
+    if(DB.settings.logo){ m.innerHTML = `<img src="${DB.settings.logo}" alt="Logo">`; }
+    else { m.innerHTML = 'MO'; }
+  });
+  const nom = DB.settings.nomZone || 'Maison Orange';
+  const loginName = document.getElementById('loginBrandName');
+  if(loginName) loginName.textContent = nom;
+  const sideName = document.getElementById('sideBrandText');
+  if(sideName) sideName.textContent = nom;
+  document.title = nom + ' — Gestion';
+}
+
 function renderPersonnel(){
   const main = document.getElementById('mainContent');
   const supers = DB.users.filter(u=>u.role==='superviseur');
@@ -952,11 +1155,11 @@ function switchPersonnelTab(mode){
 function organigrammeView(){
   const rz = DB.users.find(u=>u.role==='responsable_zone');
   const supers = DB.users.filter(u=>u.role==='superviseur');
-  const orphanAgents = DB.users.filter(u=>u.role==='agent' && u.createdBy===rz.id);
+  const orphanAgents = DB.users.filter(u=>u.role==='agent' && !u.superviseurId);
 
   const branch = (sup)=>{
-    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===sup.id);
-    const myAgents = DB.users.filter(u=>u.role==='agent' && u.createdBy===sup.id);
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===sup.id);
+    const myAgents = DB.users.filter(u=>u.role==='agent' && u.superviseurId===sup.id);
     return `<div class="org-node org-sup">
       <div class="org-card" onclick="openUserProfile('${sup.id}')">
         <div class="org-name">${escapeHtml(sup.prenom)} ${escapeHtml(sup.nom)}</div>
@@ -1087,6 +1290,8 @@ function openCreateUser(role, presetSupervisor){
     <div class="field"><label>Téléphone</label><input type="text" id="nu_tel"></div>
     ${role==='gerant' ? `<div class="field"><label>Point de vente</label>
       <select id="nu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
+    ${role==='gerant' && SESSION.role==='responsable_zone' ? `<div class="field"><label>Superviseur responsable</label>
+      <select id="nu_superviseur_g"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     ${role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="nu_superviseur"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
@@ -1134,7 +1339,9 @@ async function saveNewUser(role){
   const modif = document.getElementById('nu_modif').checked;
   const suppr = document.getElementById('nu_suppr').checked;
   const pdvId = role==='gerant' ? document.getElementById('nu_pdv')?.value : null;
-  const superviseurId = role==='agent' ? document.getElementById('nu_superviseur')?.value : null;
+  const superviseurId = role==='agent' ? document.getElementById('nu_superviseur')?.value
+    : role==='gerant' ? (SESSION.role==='superviseur' ? SESSION.id : document.getElementById('nu_superviseur_g')?.value)
+    : null;
   const photoEl = document.getElementById('nu_photo_preview');
   const photo = photoEl && photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : null;
 
@@ -1177,6 +1384,8 @@ function openEditUser(id){
     <div class="field"><label>Téléphone</label><input type="text" id="eu_tel" value="${escapeHtml(u.tel||'')}"></div>
     ${u.role==='gerant' ? `<div class="field"><label>Point de vente</label>
       <select id="eu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}" ${p.id===u.pdvId?'selected':''}>${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
+    ${u.role==='gerant' && SESSION.role==='responsable_zone' ? `<div class="field"><label>Superviseur responsable</label>
+      <select id="eu_superviseur_g"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     ${u.role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="eu_superviseur"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
@@ -1205,7 +1414,7 @@ async function saveEditUser(id){
   if(photoEl) u.photo = photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : u.photo;
   const pdvSel = document.getElementById('eu_pdv');
   if(pdvSel) u.pdvId = pdvSel.value || null;
-  const supSel = document.getElementById('eu_superviseur');
+  const supSel = document.getElementById('eu_superviseur') || document.getElementById('eu_superviseur_g');
   if(supSel) u.superviseurId = supSel.value || null;
   logAction('Modification de compte', `${u.code} mis à jour`);
   await saveDB();
@@ -1300,10 +1509,10 @@ function filterAccessTable(q){
   document.getElementById('accessTableWrap').innerHTML = accessTable(list);
 }
 
-/* Superviseur : voit uniquement les codes de son équipe (gérants + agents créés par lui, si applicable) */
+/* Superviseur : voit uniquement les codes de son équipe (gérants + agents rattachés à lui) */
 function renderAccessSup(){
   const main = document.getElementById('mainContent');
-  const team = DB.users.filter(u=>u.createdBy===SESSION.id);
+  const team = DB.users.filter(u=>u.superviseurId===SESSION.id || u.createdBy===SESSION.id);
   main.innerHTML = `
     <div class="topbar"><div><h1>Codes d'accès — mon équipe</h1><p>Comptes que vous avez créés.</p></div></div>
     <div class="panel"><div class="panel-body">${accessTable(team)}</div></div>
@@ -1480,7 +1689,7 @@ async function saveEditPDV(id){
    ========================================================================= */
 function renderGerants(){
   const main = document.getElementById('mainContent');
-  const mine = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id);
+  const mine = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
   main.innerHTML = `
     <div class="topbar">
       <div><h1>Mes gérants</h1><p>Créez et suivez les gérants sous votre supervision.</p></div>
@@ -1789,7 +1998,7 @@ function renderMoveTable(type, title, sub){
   } else if(role==='superviseur'){
     list = list.filter(e => e.superviseurId===SESSION.id && supervisorCanSeeDay(e.date));
     lockBanner = `<div class="lock-banner"><span class="banner-text">🔒 Vous ne voyez que les opérations du jour. L'historique passe sous le contrôle exclusif du responsable de zone après minuit.</span>${dayArcSVG(38)}</div>`;
-    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id).map(g=>g.id);
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id).map(g=>g.id);
     const dist = totalsByGerant(type, myGerants, isToday);
     chartsHtml = `<div class="panel"><div class="panel-head"><h2>Répartition du jour par gérant</h2>
       <button class="btn btn-ghost btn-sm" onclick="openObjectifsModal('${type}')">🎯 Objectifs</button></div>
@@ -1880,7 +2089,7 @@ async function saveDeclare(type){
   const montant = document.getElementById('dc_montant').value;
   const ref = document.getElementById('dc_ref').value.trim();
   const notes = document.getElementById('dc_notes').value.trim();
-  const supervisorId = DB.users.find(u=>u.id===SESSION.createdBy)?.id || null;
+  const supervisorId = SESSION.superviseurId || null;
   DB[type].push({ id: uid(type.toUpperCase()), gerantId: SESSION.id, superviseurId: supervisorId, date, montant, ref, notes });
   logAction(`Déclaration ${type.toUpperCase()}`, `${montant} le ${date}`);
   await saveDB();
@@ -1901,7 +2110,7 @@ function renderDaily(){
   const role = SESSION.role;
 
   if(role==='superviseur'){
-    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.createdBy===SESSION.id).map(g=>g.id);
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id).map(g=>g.id);
     const logs = DB.activityLog.filter(l=> isToday(l.ts) && myGerants.includes(l.userId));
     main.innerHTML = `
       <div class="topbar"><div><h1>Mouvements des gérants — aujourd'hui</h1><p>Suivi journalier uniquement. L'historique bascule au responsable de zone après la journée.</p></div></div>
@@ -2345,6 +2554,8 @@ document.getElementById('loginCode').addEventListener('keydown', e=>{ if(e.key==
 
 (async function init(){
   await loadDB();
+  applyTheme(DB.settings.themeId || 'orange');
+  applyBranding();
 })();
 </script>
 </body>
