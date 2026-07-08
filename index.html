@@ -10,6 +10,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --orange:#FF6600;
@@ -317,12 +319,26 @@
    Rôles : responsable_zone > superviseur > gerant / agent
    ========================================================================= */
 
-/* ---------- COMPATIBILITE HORS CLAUDE.AI ----------
+/* ---------- STOCKAGE CLOUD (Firestore) HORS CLAUDE.AI ----------
    window.storage n'existe que dans l'environnement Claude.ai. Pour un
-   déploiement autonome (GitHub Pages, Firebase Hosting, serveur classique),
-   on simule la même API avec localStorage afin que l'application fonctionne
-   à l'identique, avec sauvegarde persistante dans le navigateur. */
-if(typeof window.storage === 'undefined'){
+   déploiement autonome (GitHub Pages, Firebase Hosting), on branche la même
+   API sur Cloud Firestore afin que TOUTES les données (comptes, SIM, CA,
+   objectifs...) soient partagées en temps réel entre tous les appareils
+   (responsable de zone, superviseurs, gérants, agents). Si Firestore est
+   indisponible (config manquante, hors-ligne), on retombe sur localStorage
+   pour que l'application reste utilisable. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyANP1RdcUm7HPnKW1r_dNRYOl7TYLXjVV4",
+  authDomain: "maison-orange-17049.firebaseapp.com",
+  projectId: "maison-orange-17049",
+  storageBucket: "maison-orange-17049.firebasestorage.app",
+  messagingSenderId: "859245947553",
+  appId: "1:859245947553:web:1b032125a47e4d25245ee0"
+};
+let firestoreDb = null;
+let cloudSyncActive = false;
+
+function localStorageFallback(){
   window.storage = {
     async get(key, shared){
       const raw = localStorage.getItem('mo_'+key);
@@ -343,6 +359,61 @@ if(typeof window.storage === 'undefined'){
       return { keys, prefix, shared: !!shared };
     }
   };
+}
+
+if(typeof window.storage === 'undefined'){
+  try{
+    if(typeof firebase === 'undefined') throw new Error('SDK Firebase non chargé');
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firestoreDb = firebase.firestore();
+    const COLLECTION = 'maison_orange_storage';
+    const docId = (key, shared) => (shared ? 'shared_' : 'private_') + key;
+
+    window.storage = {
+      async get(key, shared){
+        const snap = await firestoreDb.collection(COLLECTION).doc(docId(key,shared)).get();
+        if(!snap.exists){ const err=new Error('Clé introuvable : '+key); throw err; }
+        return { key, value: snap.data().value, shared: !!shared };
+      },
+      async set(key, value, shared){
+        await firestoreDb.collection(COLLECTION).doc(docId(key,shared)).set({ value, updatedAt: Date.now() });
+        return { key, value, shared: !!shared };
+      },
+      async delete(key, shared){
+        await firestoreDb.collection(COLLECTION).doc(docId(key,shared)).delete();
+        return { key, deleted:true, shared: !!shared };
+      },
+      async list(prefix, shared){
+        return { keys: [], prefix, shared: !!shared };
+      }
+    };
+    cloudSyncActive = true;
+  }catch(e){
+    console.warn('Firestore indisponible, bascule sur le stockage local du navigateur.', e);
+    localStorageFallback();
+  }
+}
+
+/* ---------- SYNCHRONISATION TEMPS REEL ----------
+   Dès qu'un autre appareil (RZ, superviseur, gérant, agent) enregistre une
+   modification, ce listener met à jour la base localement et rafraîchit
+   l'écran affiché, sans que l'utilisateur ait besoin de recharger la page. */
+function startCloudSync(){
+  if(!cloudSyncActive || !firestoreDb) return;
+  firestoreDb.collection('maison_orange_storage').doc('shared_db')
+    .onSnapshot(snap=>{
+      if(!snap.exists || snap.metadata.hasPendingWrites) return;
+      const data = snap.data();
+      if(!data || !data.value) return;
+      try{
+        const remoteDB = JSON.parse(data.value);
+        DB = remoteDB;
+        if(SESSION){
+          const stillActive = DB.users.some(u=>u.id===SESSION.id && u.active);
+          if(stillActive){ SESSION = DB.users.find(u=>u.id===SESSION.id); render(); }
+        }
+      }catch(e){ console.error('Erreur de synchronisation cloud', e); }
+    }, err=> console.warn('Synchronisation temps réel interrompue', err));
 }
 
 const DB_KEY = 'maison_orange_db_v1';
@@ -2730,6 +2801,7 @@ document.getElementById('loginCode').addEventListener('keydown', e=>{ if(e.key==
   await loadDB();
   applyTheme(DB.settings.themeId || 'orange');
   applyBranding();
+  startCloudSync();
 })();
 </script>
 </body>
