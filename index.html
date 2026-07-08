@@ -103,7 +103,8 @@
   .side-user{border-top:1px solid rgba(255,255,255,.22);padding-top:12px;margin-top:8px;}
   .side-user-name{font-size:13px;font-weight:600;color:var(--side-text);}
   .side-user-code{font-size:11px;color:var(--side-text-soft);font-family:var(--mono);}
-  .side-logout{margin-top:10px;width:100%;}
+  .side-logout{margin-top:10px;width:100%;background:transparent;color:var(--side-text);border:1.5px solid var(--side-text-soft);}
+  .side-logout:hover{border-color:var(--side-text);color:var(--side-text);background:rgba(255,255,255,.12);}
 
   main{padding:24px 30px 60px;overflow-x:hidden;}
   .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:10px;}
@@ -469,6 +470,170 @@ async function saveObjectifs(type, gerantIds){
   closeModal(); toast('Objectifs enregistrés'); render();
 }
 
+/* ---------- OBJECTIFS DES SUPERVISEURS (fixés par le RZ) ---------- */
+function objKeySup(type, supId, ym){ return `${type}_${supId}_${ym}`; }
+function getObjectifSup(type, supId, ym){ return Number(DB.objectifsSup[objKeySup(type,supId,ym)] || 0); }
+function computeMonthTotalSup(type, supId, ym){
+  const myGerantIds = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===supId).map(g=>g.id);
+  return DB[type].filter(e=> myGerantIds.includes(e.gerantId) && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
+}
+
+/* ---------- PAGE GLOBALE : OBJECTIFS (visible RZ / superviseur / gérant) ---------- */
+function renderObjectifsGlobal(){
+  const main = document.getElementById('mainContent');
+  const role = SESSION.role;
+  const ym = todayStr().slice(0,7);
+  const moisLabel = new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const types = ['ca','tdr','tda','lp'];
+
+  if(role==='responsable_zone'){
+    const superviseurs = DB.users.filter(u=>u.role==='superviseur');
+    const gerants = DB.users.filter(u=>u.role==='gerant');
+    main.innerHTML = `
+      <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Définissez les objectifs mensuels des superviseurs et des gérants — visibles automatiquement chez eux.</p></div></div>
+      <div class="tabs">
+        <button class="tab-btn active" data-otab="sup" onclick="switchObjTab('sup')">Superviseurs</button>
+        <button class="tab-btn" data-otab="ger" onclick="switchObjTab('ger')">Gérants</button>
+      </div>
+      <div id="objTabWrap">${objSupView(superviseurs, ym, moisLabel)}</div>
+    `;
+    return;
+  }
+
+  if(role==='superviseur'){
+    const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
+    main.innerHTML = `
+      <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Objectifs fixés par le responsable de zone, et objectifs de vos gérants.</p></div></div>
+      <div class="panel"><div class="panel-head"><h2>Mes objectifs — ${moisLabel}</h2></div>
+        <div class="panel-body">
+          ${types.map(t=>{
+            const target = getObjectifSup(t, SESSION.id, ym);
+            const actual = computeMonthTotalSup(t, SESSION.id, ym);
+            if(!target) return `<div class="obj-row"><span>${typeFullLabel(t)}</span><span class="muted">Aucun objectif défini</span></div>`;
+            const pct = Math.min(100, Math.round((actual/target)*100));
+            return `<div class="obj-row"><span>${typeFullLabel(t)}</span><b>${actual.toLocaleString('fr-FR')} / ${target.toLocaleString('fr-FR')} ${unitFor(t)}</b></div>
+              <div class="progress-track"><div class="progress-fill ${pct>=100?'over':''}" style="width:${pct}%;"></div></div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>Objectifs de mes gérants — ${moisLabel}</h2></div>
+        <div class="panel-body">
+          ${myGerants.length===0 ? emptyState('Aucun gérant','Créez un gérant pour lui fixer des objectifs.') : `
+          <table><thead><tr><th>Gérant</th>${types.map(t=>`<th>${typeLabel(t)}</th>`).join('')}<th></th></tr></thead><tbody>
+          ${myGerants.map(g=>`<tr>
+            <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
+            ${types.map(t=>{ const tar=getObjectif(t,g.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
+            <td><button class="btn btn-ghost btn-sm" onclick="openGerantObjModal('${g.id}')">Définir</button></td>
+          </tr>`).join('')}
+          </tbody></table>`}
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if(role==='gerant'){
+    main.innerHTML = `
+      <div class="topbar"><div><h1>🎯 Mes objectifs</h1><p>Objectifs fixés par votre superviseur pour ${moisLabel}.</p></div></div>
+      <div class="panel"><div class="panel-body">
+        ${types.map(t=>{
+          const target = getObjectif(t, SESSION.id, ym);
+          const actual = computeMonthTotal(t, SESSION.id, ym);
+          if(!target) return `<div class="obj-row"><span>${typeFullLabel(t)}</span><span class="muted">Aucun objectif défini</span></div>`;
+          const pct = Math.min(100, Math.round((actual/target)*100));
+          return `<div class="obj-row"><span>${typeFullLabel(t)}</span><b>${actual.toLocaleString('fr-FR')} / ${target.toLocaleString('fr-FR')} ${unitFor(t)}</b></div>
+            <div class="progress-track"><div class="progress-fill ${pct>=100?'over':''}" style="width:${pct}%;"></div></div>`;
+        }).join('')}
+      </div></div>
+    `;
+    return;
+  }
+}
+
+function objSupView(superviseurs, ym, moisLabel){
+  return `<div class="panel"><div class="panel-head"><h2>Objectifs des superviseurs — ${moisLabel}</h2></div>
+    <div class="panel-body">
+      ${superviseurs.length===0 ? emptyState('Aucun superviseur','Créez un superviseur avant de définir des objectifs.') : `
+      <table><thead><tr><th>Superviseur</th><th>CA</th><th>TDR</th><th>TDA</th><th>LP</th><th></th></tr></thead><tbody>
+      ${superviseurs.map(s=>`<tr>
+        <td>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</td>
+        ${['ca','tdr','tda','lp'].map(t=>{ const tar=getObjectifSup(t,s.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
+        <td><button class="btn btn-ghost btn-sm" onclick="openSupObjModal('${s.id}')">Définir</button></td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div></div>`;
+}
+function objGerView(){
+  const gerants = DB.users.filter(u=>u.role==='gerant');
+  const ym = todayStr().slice(0,7);
+  return `<div class="panel"><div class="panel-head"><h2>Objectifs des gérants — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</h2></div>
+    <div class="panel-body">
+      ${gerants.length===0 ? emptyState('Aucun gérant','—') : `
+      <table><thead><tr><th>Gérant</th><th>Superviseur</th><th>CA</th><th>TDR</th><th>TDA</th><th>LP</th><th></th></tr></thead><tbody>
+      ${gerants.map(g=>{ const sup = DB.users.find(u=>u.id===g.superviseurId); return `<tr>
+        <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
+        <td class="muted">${sup? sup.prenom+' '+sup.nom : '—'}</td>
+        ${['ca','tdr','tda','lp'].map(t=>{ const tar=getObjectif(t,g.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
+        <td><button class="btn btn-ghost btn-sm" onclick="openGerantObjModal('${g.id}')">Définir</button></td>
+      </tr>`; }).join('')}
+      </tbody></table>`}
+    </div></div>`;
+}
+function switchObjTab(tab){
+  document.querySelectorAll('[data-otab]').forEach(b=>b.classList.toggle('active', b.dataset.otab===tab));
+  const ym = todayStr().slice(0,7);
+  const moisLabel = new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  document.getElementById('objTabWrap').innerHTML = tab==='sup'
+    ? objSupView(DB.users.filter(u=>u.role==='superviseur'), ym, moisLabel)
+    : objGerView();
+}
+function openSupObjModal(supId){
+  const s = DB.users.find(u=>u.id===supId);
+  const ym = todayStr().slice(0,7);
+  const types = ['ca','tdr','tda','lp'];
+  document.getElementById('modalTitle').textContent = `Objectifs — ${s.prenom} ${s.nom}`;
+  document.getElementById('modalBody').innerHTML = types.map(t=>`
+    <div class="field"><label>${typeFullLabel(t)} (${unitFor(t)})</label>
+      <input type="number" id="oSup_${t}" value="${getObjectifSup(t,supId,ym)||''}" placeholder="Cible en ${unitFor(t)}"></div>`).join('');
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveSupObjectifs('${supId}')">Enregistrer</button>`;
+  openModal();
+}
+async function saveSupObjectifs(supId){
+  const ym = todayStr().slice(0,7);
+  ['ca','tdr','tda','lp'].forEach(t=>{
+    const val = document.getElementById('oSup_'+t).value;
+    DB.objectifsSup[objKeySup(t,supId,ym)] = val ? Number(val) : 0;
+  });
+  logAction('Objectifs superviseur définis', `${supId} — ${ym}`);
+  await saveDB();
+  closeModal(); toast('Objectifs enregistrés — visibles chez le superviseur'); render();
+}
+function openGerantObjModal(gerantId){
+  const g = DB.users.find(u=>u.id===gerantId);
+  const ym = todayStr().slice(0,7);
+  const types = ['ca','tdr','tda','lp'];
+  document.getElementById('modalTitle').textContent = `Objectifs — ${g.prenom} ${g.nom}`;
+  document.getElementById('modalBody').innerHTML = types.map(t=>`
+    <div class="field"><label>${typeFullLabel(t)} (${unitFor(t)})</label>
+      <input type="number" id="oGer_${t}" value="${getObjectif(t,gerantId,ym)||''}" placeholder="Cible en ${unitFor(t)}"></div>`).join('');
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveGerantObjectifs('${gerantId}')">Enregistrer</button>`;
+  openModal();
+}
+async function saveGerantObjectifs(gerantId){
+  const ym = todayStr().slice(0,7);
+  ['ca','tdr','tda','lp'].forEach(t=>{
+    const val = document.getElementById('oGer_'+t).value;
+    DB.objectifs[objKey(t,gerantId,ym)] = val ? Number(val) : 0;
+  });
+  logAction('Objectifs gérant définis', `${gerantId} — ${ym}`);
+  await saveDB();
+  closeModal(); toast('Objectifs enregistrés — visibles chez le gérant'); render();
+}
+
 /* ---------- SIGNATURE : ARC DE CYCLE JOURNALIER ----------
    Représente visuellement l'heure du jour restante avant le verrouillage
    de l'accès superviseur à minuit (00:00). Réapparaît partout où la règle
@@ -536,7 +701,7 @@ function exportToPDF(title, subtitle, headers, rows){
 async function loadDB(){
   try{
     const res = await window.storage.get('db', true);
-    if(res && res.value){ DB = JSON.parse(res.value); if(!DB.objectifs) DB.objectifs={}; if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:''}; if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange'; return; }
+    if(res && res.value){ DB = JSON.parse(res.value); if(!DB.objectifs) DB.objectifs={}; if(!DB.objectifsSup) DB.objectifsSup={}; if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:''}; if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange'; return; }
   }catch(e){ /* not found */ }
   DB = seedDB();
   await saveDB();
@@ -566,6 +731,7 @@ function seedDB(){
     activityLog: [], // {id, ts, userId, userNom, role, action, details}
     reports: [], // generated report snapshots
     objectifs: {}, // { "type_gerantId_YYYY-MM": montantCible }
+    objectifsSup: {}, // { "type_superviseurId_YYYY-MM": {cible, notes} } — objectifs fixés par le RZ pour les superviseurs
     settings: {
       logo: null,
       themeId: 'orange',
@@ -677,6 +843,9 @@ function navItems(role){
         {id:'audit', label:'Journal d\'audit'},
         {id:'reports', label:'Rapports annuel/trimestriel'},
       ]},
+      {sec:'Pilotage', items:[
+        {id:'objectifs', label:'🎯 Objectifs'},
+      ]},
       {sec:'Administration', items:[
         {id:'settings', label:'⚙ Paramètres'},
       ]},
@@ -688,6 +857,9 @@ function navItems(role){
       {sec:'Équipe', items:[
         {id:'gerants', label:'Gérants'},
         {id:'accessSup', label:'Codes d\'accès équipe'},
+      ]},
+      {sec:'Pilotage', items:[
+        {id:'objectifs', label:'🎯 Objectifs'},
       ]},
       {sec:'Réseau', items:[
         {id:'pdv', label:'Points de vente'},
@@ -706,6 +878,7 @@ function navItems(role){
     return [
       {sec:'Mon activité', items:[
         {id:'dashboard', label:'Tableau de bord'},
+        {id:'objectifs', label:'🎯 Mes objectifs'},
         {id:'ca', label:'Déclarer CA'},
         {id:'tdr', label:'Déclarer TDR'},
         {id:'tda', label:'Déclarer TDA'},
@@ -773,6 +946,7 @@ function render(){
     gerants: renderGerants,
     accessSup: renderAccessSup,
     settings: renderSettings,
+    objectifs: renderObjectifsGlobal,
   };
   main.innerHTML='';
   (renderers[currentView] || renderDashboard)();
