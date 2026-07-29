@@ -33,6 +33,10 @@
     --side-text: #FFFFFF;
     --side-text-soft: rgba(255,255,255,.75);
     --side-active-bg: rgba(0,0,0,.22);
+    --topbar-bg: transparent;
+    --topbar-text: #1B1B1F;
+    --topbar-sub: #4A4A52;
+    --topbar-pad: 0;
   }
   *{box-sizing:border-box;}
   body{margin:0;font-family:var(--sans);background:var(--paper);color:var(--ink);}
@@ -86,7 +90,7 @@
   #app.active{display:grid;}
   aside{
     background:var(--side-bg);color:var(--side-text);padding:20px 14px;display:flex;flex-direction:column;
-    position:sticky;top:0;height:100vh;
+    position:sticky;top:0;height:100vh;min-height:100%;overflow-y:auto;overflow-x:hidden;
   }
   .side-brand{display:flex;align-items:center;gap:9px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.22);margin-bottom:14px;}
   .side-brand .brand-mark{width:28px;height:28px;font-size:13px;overflow:hidden;padding:0;}
@@ -109,9 +113,17 @@
   .side-logout:hover{border-color:var(--side-text);color:var(--side-text);background:rgba(255,255,255,.12);}
 
   main{padding:24px 30px 60px;overflow-x:hidden;}
-  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:10px;}
-  .topbar h1{font-family:var(--disp);font-size:24px;margin:0 0 4px;letter-spacing:-.01em;}
-  .topbar p{margin:0;color:var(--ink-soft);font-size:13.5px;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:10px;background:var(--topbar-bg);color:var(--topbar-text);padding:var(--topbar-pad);border-radius:8px;}
+  .topbar h1{font-family:var(--disp);font-size:24px;margin:0 0 4px;letter-spacing:-.01em;color:inherit;}
+  .topbar p{margin:0;color:var(--topbar-sub);font-size:13.5px;}
+  .conn-badge{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;margin:10px 0 4px;padding:6px 9px;border-radius:5px;background:rgba(0,0,0,.18);color:var(--side-text);}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:#8A8A93;flex-shrink:0;}
+  .conn-badge.on .conn-dot{background:#3DDC84;box-shadow:0 0 6px rgba(61,220,132,.8);}
+  .conn-badge.off .conn-dot{background:#FF5252;}
+  .theme-form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:12px;}
+  .theme-form-grid input[type=color]{width:100%;height:38px;padding:2px;border:1.5px solid var(--line);border-radius:4px;background:#FCFBFA;cursor:pointer;}
+  .theme-swatch-del{display:block;margin:6px auto 0;background:#FBEAEA;color:var(--danger);border:none;border-radius:4px;font-size:10.5px;font-weight:600;padding:3px 10px;cursor:pointer;}
+  .theme-swatch-del:hover{background:var(--danger);color:#fff;}
   .lock-banner{
     background:#FFF4E9;border:1px solid #FFD8AE;color:var(--orange-deep);
     padding:10px 14px;border-radius:5px;font-size:12.5px;margin-bottom:18px;display:flex;gap:12px;align-items:center;
@@ -264,18 +276,13 @@
     <div class="login-err" id="loginErr"></div>
     <div class="field">
       <label>Code d'accès</label>
-      <input type="text" id="loginCode" placeholder="ex : RZ-0001" autocomplete="off">
+      <input type="text" id="loginCode" placeholder="ex : RZ-0001" autocomplete="off" autocapitalize="off">
     </div>
     <div class="field">
       <label>Mot de passe</label>
-      <input type="text" id="loginPass" placeholder="Mot de passe" autocomplete="off">
+      <input type="text" id="loginPass" placeholder="Mot de passe" autocomplete="off" autocapitalize="off">
     </div>
     <button class="btn btn-primary" onclick="doLogin()">Se connecter</button>
-    <div class="login-hint">
-      <b>Démo — comptes créés au premier lancement :</b><br>
-      Responsable de zone : <b>RZ-0001</b> / orange2024<br>
-      (Créez ensuite superviseurs, gérants et agents depuis le tableau de bord.)
-    </div>
   </div>
 </div>
 
@@ -293,6 +300,7 @@
     <div class="side-user">
       <div class="side-user-name" id="sideUserName">—</div>
       <div class="side-user-code" id="sideUserCode">—</div>
+      <div class="conn-badge" id="connBadge"><span class="conn-dot"></span><span id="connBadgeText">Connexion…</span></div>
       <button class="btn btn-ghost btn-sm side-logout" onclick="logout()">Déconnexion</button>
     </div>
   </aside>
@@ -426,12 +434,40 @@ function startCloudSync(){
       try{
         const remoteDB = JSON.parse(data.value);
         DB = remoteDB;
+        ensureDefaults();
+        try{ localStorage.setItem('mo_db_cache', data.value); }catch(_){}
+        /* Le thème et l'identité choisis sur un autre appareil s'appliquent ici aussi. */
+        applyTheme(DB.settings.themeId || 'orange');
+        applyBranding();
         if(SESSION){
           const stillActive = DB.users.some(u=>u.id===SESSION.id && u.active);
           if(stillActive){ SESSION = DB.users.find(u=>u.id===SESSION.id); render(); }
         }
       }catch(e){ console.error('Erreur de synchronisation cloud', e); }
     }, err=> console.warn('Synchronisation temps réel interrompue', err));
+}
+
+/* ---------- INDICATEUR EN LIGNE / HORS LIGNE ----------
+   Surveille la connexion réelle à la Realtime Database (.info/connected)
+   et met à jour le badge dans la barre latérale. */
+function setConnBadge(state, label){
+  const badge = document.getElementById('connBadge');
+  const txt = document.getElementById('connBadgeText');
+  if(!badge || !txt) return;
+  badge.classList.remove('on','off');
+  if(state==='on') badge.classList.add('on');
+  if(state==='off') badge.classList.add('off');
+  txt.textContent = label;
+}
+function startConnectionWatch(){
+  if(!cloudSyncActive || !rtdb){
+    setConnBadge('off', 'Mode local (hors base)');
+    return;
+  }
+  rtdb.ref('.info/connected').on('value', snap=>{
+    if(snap.val() === true) setConnBadge('on', 'En ligne — base synchronisée');
+    else setConnBadge('off', 'Hors ligne');
+  });
 }
 
 const DB_KEY = 'maison_orange_db_v1';
@@ -476,22 +512,37 @@ function typeFullLabel(type){
 }
 function typeLabel(type){ return {ca:'CA', tdr:'TDR', tda:'TDA', lp:'LP'}[type]; }
 
-/* ---------- THEMES DE LA SIDEBAR ---------- */
+/* ---------- THEMES (sidebar + barre du haut) ---------- */
 const THEMES = [
-  { id:'orange', nom:'Orange (défaut)', bg:'linear-gradient(180deg, #FF6600, #D14E00)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.22)' },
-  { id:'nuit',   nom:'Nuit',            bg:'linear-gradient(180deg, #1B1B1F, #2A2A30)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.65)', activeBg:'#FF6600' },
-  { id:'ardoise',nom:'Ardoise',         bg:'linear-gradient(180deg, #33414D, #24303A)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.7)',  activeBg:'#FF6600' },
-  { id:'vert',   nom:'Vert forêt',      bg:'linear-gradient(180deg, #1F6B45, #16502F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)' },
-  { id:'bordeaux',nom:'Bordeaux',       bg:'linear-gradient(180deg, #7A2E2E, #591F1F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)' },
-  { id:'clair',  nom:'Clair',           bg:'linear-gradient(180deg, #FFFFFF, #F1EDE6)', text:'#1B1B1F', textSoft:'#6B6B72',              activeBg:'#FFE1C2' },
+  { id:'orange', nom:'Orange (défaut)', bg:'linear-gradient(180deg, #FF6600, #D14E00)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.22)', topBg:'transparent', topText:'#1B1B1F', topSub:'#4A4A52' },
+  { id:'nuit',   nom:'Nuit',            bg:'linear-gradient(180deg, #1B1B1F, #2A2A30)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.65)', activeBg:'#FF6600', topBg:'linear-gradient(90deg, #1B1B1F, #2A2A30)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.7)' },
+  { id:'ardoise',nom:'Ardoise',         bg:'linear-gradient(180deg, #33414D, #24303A)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.7)',  activeBg:'#FF6600', topBg:'linear-gradient(90deg, #33414D, #24303A)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.7)' },
+  { id:'vert',   nom:'Vert forêt',      bg:'linear-gradient(180deg, #1F6B45, #16502F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)', topBg:'linear-gradient(90deg, #1F6B45, #16502F)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.75)' },
+  { id:'bordeaux',nom:'Bordeaux',       bg:'linear-gradient(180deg, #7A2E2E, #591F1F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)', topBg:'linear-gradient(90deg, #7A2E2E, #591F1F)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.75)' },
+  { id:'clair',  nom:'Clair',           bg:'linear-gradient(180deg, #FFFFFF, #F1EDE6)', text:'#1B1B1F', textSoft:'#6B6B72',              activeBg:'#FFE1C2', topBg:'#FFFFFF', topText:'#1B1B1F', topSub:'#6B6B72' },
 ];
+function allThemes(){
+  const customs = (DB && DB.settings && Array.isArray(DB.settings.customThemes)) ? DB.settings.customThemes : [];
+  return THEMES.concat(customs);
+}
 function applyTheme(themeId){
-  const t = THEMES.find(x=>x.id===themeId) || THEMES[0];
+  const t = allThemes().find(x=>x.id===themeId) || THEMES[0];
   const root = document.documentElement.style;
   root.setProperty('--side-bg', t.bg);
   root.setProperty('--side-text', t.text);
   root.setProperty('--side-text-soft', t.textSoft);
   root.setProperty('--side-active-bg', t.activeBg);
+  const topBg = t.topBg || 'transparent';
+  root.setProperty('--topbar-bg', topBg);
+  root.setProperty('--topbar-text', t.topText || '#1B1B1F');
+  root.setProperty('--topbar-sub', t.topSub || (t.topText ? t.topText : '#4A4A52'));
+  root.setProperty('--topbar-pad', topBg==='transparent' ? '0' : '12px 16px');
+}
+/* Convertit une couleur hex en version adoucie (pour les textes secondaires). */
+function softColor(hex){
+  const h = (hex||'#FFFFFF').replace('#','');
+  const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  return `rgba(${r},${g},${b},.72)`;
 }
 function monthKey(dateStr){ return (dateStr||todayStr()).slice(0,7); }
 function objKey(type, gerantId, ym){ return `${type}_${gerantId}_${ym}`; }
@@ -787,17 +838,48 @@ function exportToPDF(title, subtitle, headers, rows){
 }
 
 /* ---------- PERSISTENCE (localStorage-like via storage API, fallback to JS var if unavailable) ---------- */
+function ensureDefaults(){
+  if(!DB.objectifs) DB.objectifs={};
+  if(!DB.objectifsSup) DB.objectifsSup={};
+  if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:'',customThemes:[]};
+  if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange';
+  if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes=[];
+}
 async function loadDB(){
+  let raw = null;
   try{
     const res = await window.storage.get('db', true);
-    if(res && res.value){ DB = JSON.parse(res.value); if(!DB.objectifs) DB.objectifs={}; if(!DB.objectifsSup) DB.objectifsSup={}; if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:''}; if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange'; return; }
-  }catch(e){ /* not found */ }
+    raw = res && res.value;
+  }catch(e){
+    const msg = (e && e.message) ? e.message : '';
+    const notFound = /introuvable/i.test(msg);
+    if(!notFound){
+      /* Erreur réseau ou permission refusée : on N'ÉCRASE JAMAIS la base cloud.
+         On utilise la copie locale de secours pour rester utilisable. */
+      console.warn('Lecture cloud impossible :', msg);
+      if(/permission/i.test(msg)){ toast('Accès à la base refusé — vérifiez les règles Firebase'); }
+      const cached = localStorage.getItem('mo_db_cache');
+      if(cached){ try{ DB = JSON.parse(cached); ensureDefaults(); return; }catch(_){} }
+      DB = seedDB(); ensureDefaults();
+      return; /* base locale uniquement, pas de saveDB vers le cloud */
+    }
+  }
+  if(raw){
+    DB = JSON.parse(raw);
+    ensureDefaults();
+    try{ localStorage.setItem('mo_db_cache', raw); }catch(_){}
+    return;
+  }
+  /* Premier lancement réel : la clé n'existe pas encore dans le cloud. */
   DB = seedDB();
+  ensureDefaults();
   await saveDB();
 }
 async function saveDB(){
   try{
-    await window.storage.set('db', JSON.stringify(DB), true);
+    const raw = JSON.stringify(DB);
+    try{ localStorage.setItem('mo_db_cache', raw); }catch(_){}
+    await window.storage.set('db', raw, true);
   }catch(e){ console.error('Erreur de sauvegarde', e); toast('Erreur de sauvegarde des données'); }
 }
 
@@ -855,7 +937,7 @@ function supervisorCanSeeDay(dateStr){
    AUTH
    ========================================================================= */
 function findUser(code, pass){
-  return DB.users.find(u => u.code.toLowerCase() === code.trim().toLowerCase() && u.pass === pass && u.active);
+  return DB.users.find(u => u.code.toLowerCase() === code.trim().toLowerCase() && u.pass === (pass||'').trim() && u.active);
 }
 
 async function doLogin(){
@@ -1213,16 +1295,72 @@ function settingsIdentiteView(){
     <div class="panel">
       <div class="panel-head"><h2>Thème de couleurs</h2></div>
       <div class="panel-body">
+        <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Le thème s'applique à la barre latérale et à la barre du haut, et se synchronise automatiquement sur tous les appareils.</p>
         <div class="theme-grid">
-          ${THEMES.map(t=>`
-            <div class="theme-swatch ${DB.settings.themeId===t.id?'active':''}" onclick="chooseTheme('${t.id}')">
-              <div class="theme-swatch-bar" style="background:${t.bg};"></div>
-              <div class="theme-swatch-name">${t.nom}</div>
+          ${allThemes().map(t=>`
+            <div class="theme-swatch ${DB.settings.themeId===t.id?'active':''}">
+              <div onclick="chooseTheme('${t.id}')">
+                <div class="theme-swatch-bar" style="background:${t.bg};"></div>
+                <div class="theme-swatch-bar" style="background:${t.topBg==='transparent'?'#F7F5F2':t.topBg};height:12px;"></div>
+                <div class="theme-swatch-name">${escapeHtml(t.nom)}</div>
+              </div>
+              ${String(t.id).startsWith('custom-') ? `<button class="theme-swatch-del" onclick="deleteCustomTheme('${t.id}')">Supprimer</button>` : ''}
             </div>`).join('')}
         </div>
       </div>
     </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Créer un thème personnalisé</h2></div>
+      <div class="panel-body">
+        <div class="field"><label>Nom du thème</label><input type="text" id="ct_nom" placeholder="Ex : Bleu océan"></div>
+        <div class="theme-form-grid">
+          <div class="field"><label>Barre latérale — haut</label><input type="color" id="ct_side1" value="#0D47A1"></div>
+          <div class="field"><label>Barre latérale — bas</label><input type="color" id="ct_side2" value="#08306B"></div>
+          <div class="field"><label>Texte barre latérale</label><input type="color" id="ct_sidetext" value="#FFFFFF"></div>
+          <div class="field"><label>Barre du haut — fond</label><input type="color" id="ct_top" value="#0D47A1"></div>
+          <div class="field"><label>Barre du haut — texte</label><input type="color" id="ct_toptext" value="#FFFFFF"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addCustomTheme()">Ajouter et appliquer le thème</button>
+      </div>
+    </div>
   `;
+}
+async function addCustomTheme(){
+  const nom = document.getElementById('ct_nom').value.trim();
+  if(!nom){ toast('Donnez un nom au thème'); return; }
+  const c1 = document.getElementById('ct_side1').value;
+  const c2 = document.getElementById('ct_side2').value;
+  const st = document.getElementById('ct_sidetext').value;
+  const tb = document.getElementById('ct_top').value;
+  const tt = document.getElementById('ct_toptext').value;
+  const theme = {
+    id: 'custom-' + Math.random().toString(36).slice(2,8),
+    nom,
+    bg: `linear-gradient(180deg, ${c1}, ${c2})`,
+    text: st,
+    textSoft: softColor(st),
+    activeBg: 'rgba(0,0,0,.25)',
+    topBg: `linear-gradient(90deg, ${tb}, ${tb})`,
+    topText: tt,
+    topSub: softColor(tt)
+  };
+  if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes = [];
+  DB.settings.customThemes.push(theme);
+  DB.settings.themeId = theme.id;
+  applyTheme(theme.id);
+  logAction('Thème personnalisé créé', nom);
+  await saveDB();
+  toast('Thème « '+nom+' » créé et appliqué');
+  render();
+}
+async function deleteCustomTheme(themeId){
+  if(!confirm('Supprimer ce thème personnalisé ?')) return;
+  DB.settings.customThemes = (DB.settings.customThemes||[]).filter(t=>t.id!==themeId);
+  if(DB.settings.themeId === themeId){ DB.settings.themeId = 'orange'; applyTheme('orange'); }
+  logAction('Thème personnalisé supprimé', themeId);
+  await saveDB();
+  toast('Thème supprimé');
+  render();
 }
 async function saveLogo(){
   DB.settings.nomZone = document.getElementById('set_nomzone').value.trim() || 'Maison Orange';
@@ -2820,6 +2958,7 @@ document.getElementById('loginCode').addEventListener('keydown', e=>{ if(e.key==
   applyTheme(DB.settings.themeId || 'orange');
   applyBranding();
   startCloudSync();
+  startConnectionWatch();
 })();
 </script>
 </body>
