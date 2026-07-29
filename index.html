@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
   :root{
     --orange:#FF6600;
@@ -319,24 +319,28 @@
    Rôles : responsable_zone > superviseur > gerant / agent
    ========================================================================= */
 
-/* ---------- STOCKAGE CLOUD (Firestore) HORS CLAUDE.AI ----------
+/* ---------- STOCKAGE CLOUD (Firebase Realtime Database) ----------
    window.storage n'existe que dans l'environnement Claude.ai. Pour un
    déploiement autonome (GitHub Pages, Firebase Hosting), on branche la même
-   API sur Cloud Firestore afin que TOUTES les données (comptes, SIM, CA,
+   API sur la Realtime Database afin que TOUTES les données (comptes, SIM, CA,
    objectifs...) soient partagées en temps réel entre tous les appareils
-   (responsable de zone, superviseurs, gérants, agents). Si Firestore est
+   (responsable de zone, superviseurs, gérants, agents). Si la base est
    indisponible (config manquante, hors-ligne), on retombe sur localStorage
    pour que l'application reste utilisable. */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyANP1RdcUm7HPnKW1r_dNRYOl7TYLXjVV4",
   authDomain: "maison-orange-17049.firebaseapp.com",
+  databaseURL: "https://maison-orange-17049-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "maison-orange-17049",
   storageBucket: "maison-orange-17049.firebasestorage.app",
   messagingSenderId: "859245947553",
   appId: "1:859245947553:web:1b032125a47e4d25245ee0"
 };
-let firestoreDb = null;
+let rtdb = null;
 let cloudSyncActive = false;
+/* Identifiant unique de cet appareil/onglet : permet d'ignorer l'écho de
+   ses propres écritures dans le listener temps réel. */
+const CLIENT_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 function localStorageFallback(){
   window.storage = {
@@ -365,31 +369,43 @@ if(typeof window.storage === 'undefined'){
   try{
     if(typeof firebase === 'undefined') throw new Error('SDK Firebase non chargé');
     firebase.initializeApp(FIREBASE_CONFIG);
-    firestoreDb = firebase.firestore();
-    const COLLECTION = 'maison_orange_storage';
-    const docId = (key, shared) => (shared ? 'shared_' : 'private_') + key;
+    rtdb = firebase.database();
+    const ROOT = 'maison_orange_storage';
+    /* Les chemins RTDB interdisent . # $ [ ] / — on encode ces caractères. */
+    const safeKey = k => encodeURIComponent(String(k)).replace(/\./g,'%2E');
+    const nodeRef = (key, shared) => rtdb.ref(ROOT + '/' + (shared ? 'shared_' : 'private_') + safeKey(key));
 
     window.storage = {
       async get(key, shared){
-        const snap = await firestoreDb.collection(COLLECTION).doc(docId(key,shared)).get();
-        if(!snap.exists){ const err=new Error('Clé introuvable : '+key); throw err; }
-        return { key, value: snap.data().value, shared: !!shared };
+        const snap = await nodeRef(key,shared).get();
+        if(!snap.exists()){ const err=new Error('Clé introuvable : '+key); throw err; }
+        return { key, value: snap.val().value, shared: !!shared };
       },
       async set(key, value, shared){
-        await firestoreDb.collection(COLLECTION).doc(docId(key,shared)).set({ value, updatedAt: Date.now() });
+        await nodeRef(key,shared).set({ value, updatedAt: Date.now(), clientId: CLIENT_ID });
         return { key, value, shared: !!shared };
       },
       async delete(key, shared){
-        await firestoreDb.collection(COLLECTION).doc(docId(key,shared)).delete();
+        await nodeRef(key,shared).remove();
         return { key, deleted:true, shared: !!shared };
       },
       async list(prefix, shared){
-        return { keys: [], prefix, shared: !!shared };
+        const snap = await rtdb.ref(ROOT).get();
+        const pfx = (shared ? 'shared_' : 'private_') + safeKey(prefix||'');
+        const keys = [];
+        if(snap.exists()){
+          snap.forEach(child=>{
+            if(child.key.startsWith(pfx)){
+              keys.push(decodeURIComponent(child.key.replace(/^shared_|^private_/,'')));
+            }
+          });
+        }
+        return { keys, prefix, shared: !!shared };
       }
     };
     cloudSyncActive = true;
   }catch(e){
-    console.warn('Firestore indisponible, bascule sur le stockage local du navigateur.', e);
+    console.warn('Realtime Database indisponible, bascule sur le stockage local du navigateur.', e);
     localStorageFallback();
   }
 }
@@ -399,12 +415,14 @@ if(typeof window.storage === 'undefined'){
    modification, ce listener met à jour la base localement et rafraîchit
    l'écran affiché, sans que l'utilisateur ait besoin de recharger la page. */
 function startCloudSync(){
-  if(!cloudSyncActive || !firestoreDb) return;
-  firestoreDb.collection('maison_orange_storage').doc('shared_db')
-    .onSnapshot(snap=>{
-      if(!snap.exists || snap.metadata.hasPendingWrites) return;
-      const data = snap.data();
+  if(!cloudSyncActive || !rtdb) return;
+  rtdb.ref('maison_orange_storage/shared_db')
+    .on('value', snap=>{
+      if(!snap.exists()) return;
+      const data = snap.val();
       if(!data || !data.value) return;
+      /* On ignore l'écho de nos propres écritures (déjà appliquées localement). */
+      if(data.clientId === CLIENT_ID) return;
       try{
         const remoteDB = JSON.parse(data.value);
         DB = remoteDB;
