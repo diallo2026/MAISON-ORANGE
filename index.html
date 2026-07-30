@@ -126,6 +126,18 @@
   .pt-photo-tile .pt-tile-dot{width:6px;height:6px;border-radius:50%;background:#D1CDC5;margin-top:-2px;}
   .pt-photo-tile.present .pt-tile-dot{background:#1F8A4C;}
   .pt-photo-tile.sorti .pt-tile-dot{background:#8A8A93;}
+  .pt-confirm-card{
+    background:#F7F5F2;border:1.5px solid var(--line);border-radius:10px;
+    padding:16px;margin-top:4px;text-align:center;
+  }
+  .pt-confirm-card img{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2.5px solid #1F8A4C;margin-bottom:8px;}
+  .pt-confirm-name{font-weight:700;font-size:14.5px;color:var(--ink);}
+  .pt-confirm-action{font-size:12px;color:var(--ink-soft);margin:2px 0 12px;}
+  .pt-confirm-action b{color:#1F8A4C;}
+  .pt-confirm-card input{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:6px;font-size:15px;text-align:center;letter-spacing:.08em;margin-bottom:10px;}
+  .pt-confirm-row{display:flex;gap:8px;}
+  .pt-confirm-row .btn{flex:1;margin-top:0;}
+  .pt-confirm-err{color:var(--danger);font-size:11.5px;margin:-4px 0 10px;min-height:14px;}
   /* Panneaux repliables : bouton ▾ sur chaque panneau + tête cliquable */
   .panel-head{cursor:pointer;user-select:none;}
   .fold-btn{
@@ -170,7 +182,16 @@
   .side-brand-text{font-family:var(--disp);font-weight:700;font-size:14.5px;color:var(--side-text);}
   .side-role{font-size:10px;color:var(--side-text-soft);text-transform:uppercase;letter-spacing:.06em;margin-top:1px;}
   nav{flex:1;display:flex;flex-direction:column;gap:2px;}
-  nav .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--side-text-soft);margin:14px 8px 6px;}
+  nav .nav-label{
+    font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--side-text-soft);
+    margin:14px 4px 6px;padding:4px 6px;cursor:pointer;user-select:none;
+    display:flex;align-items:center;justify-content:space-between;border-radius:4px;
+  }
+  nav .nav-label:hover{background:rgba(255,255,255,.10);}
+  nav .nav-label .nav-fold-arrow{font-size:9px;transition:transform .15s;}
+  nav .nav-group.collapsed .nav-fold-arrow{transform:rotate(-90deg);}
+  nav .nav-group{overflow:hidden;transition:max-height .18s ease;}
+  nav .nav-group.collapsed .nav-items{display:none;}
   nav button{
     all:unset;cursor:pointer;padding:9px 10px;border-radius:5px;font-size:13.5px;color:var(--side-text-soft);
     display:flex;align-items:center;gap:9px;transition:.12s;
@@ -401,6 +422,7 @@
         </select>
       </div>
       <div class="pt-photo-grid" id="ptPhotoGrid"></div>
+      <div id="ptConfirmZone" style="display:none;"></div>
     </div>
     <div class="pt-sep">— ou par code —</div>
     <div class="field"><label>Code de pointage (ou code d'accès)</label>
@@ -1263,8 +1285,10 @@ function togglePtPhotoGrid(){
   panel.style.display = show ? 'block' : 'none';
   document.getElementById('ptPhotoToggleBtn').textContent = show ? '👥 Masquer les photos' : '👥 Pointer en touchant sa photo';
   if(show) renderPtPhotoGrid();
+  else closePtConfirm();
 }
 function renderPtPhotoGrid(){
+  closePtConfirm();
   const grid = document.getElementById('ptPhotoGrid');
   if(!grid) return;
   const today = todayStr();
@@ -1283,7 +1307,7 @@ function renderPtPhotoGrid(){
   }
   grid.innerHTML = staff.map(u=>{
     const st = statutOf(u);
-    return `<button type="button" class="pt-photo-tile ${st}" onclick="pointerParPhoto('${u.id}')" title="${escapeHtml(u.prenom+' '+u.nom)}">
+    return `<button type="button" class="pt-photo-tile ${st}" onclick="selectPointagePhoto('${u.id}')" title="${escapeHtml(u.prenom+' '+u.nom)}">
       <img src="${u.photo || defaultAvatar()}">
       <span class="pt-tile-dot"></span>
       <span class="pt-tile-name">${escapeHtml(u.prenom)}</span>
@@ -1291,6 +1315,61 @@ function renderPtPhotoGrid(){
   }).join('') || '<div class="muted" style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;">Aucun membre actif.</div>';
 }
 function roleOrder(r){ return {responsable_zone:0, superviseur:1, gerant:2, agent:3}[r] ?? 9; }
+/* Étape 2 : après avoir touché sa photo, l'employé confirme avec son code
+   personnel (code de pointage, ou code d'accès) avant que l'entrée/sortie
+   ne soit enregistrée — évite qu'un pointage soit pris à la place d'un autre. */
+function selectPointagePhoto(userId){
+  const u = DB.users.find(x=>x.id===userId && x.active);
+  if(!u) return;
+  const today = todayStr();
+  const p = DB.pointages.find(x=>x.userId===u.id && x.date===today);
+  const action = (!p) ? 'Entrée' : (!p.sortie ? 'Sortie' : null);
+  const zone = document.getElementById('ptConfirmZone');
+  if(action===null){
+    zone.style.display='block';
+    zone.innerHTML = `<div class="pt-confirm-card">
+      <img src="${u.photo || defaultAvatar()}">
+      <div class="pt-confirm-name">${escapeHtml(u.prenom+' '+u.nom)}</div>
+      <div class="pt-confirm-action">A déjà pointé l'entrée (${p.entree}) et la sortie (${p.sortie}) aujourd'hui.</div>
+      <button class="btn btn-ghost" style="width:100%;" onclick="closePtConfirm()">Fermer</button>
+    </div>`;
+    return;
+  }
+  window._ptConfirmUserId = u.id;
+  zone.style.display='block';
+  zone.innerHTML = `<div class="pt-confirm-card">
+    <img src="${u.photo || defaultAvatar()}">
+    <div class="pt-confirm-name">${escapeHtml(u.prenom+' '+u.nom)}</div>
+    <div class="pt-confirm-action">Confirmez votre <b>${action==='Entrée'?'arrivée':'sortie'}</b> avec votre mot de passe</div>
+    <input type="password" id="ptConfirmCode" placeholder="Votre mot de passe" autocomplete="off" autocapitalize="off" onkeydown="if(event.key==='Enter')validerPointagePhoto('${action}')">
+    <div class="pt-confirm-err" id="ptConfirmErr"></div>
+    <div class="pt-confirm-row">
+      <button class="btn btn-ghost" onclick="closePtConfirm()">Annuler</button>
+      <button class="btn btn-primary" onclick="validerPointagePhoto('${action}')">Valider ${action==='Entrée'?"l'entrée":'la sortie'}</button>
+    </div>
+  </div>`;
+  setTimeout(()=>document.getElementById('ptConfirmCode')?.focus(), 50);
+}
+function closePtConfirm(){
+  window._ptConfirmUserId = null;
+  const zone = document.getElementById('ptConfirmZone');
+  zone.style.display='none'; zone.innerHTML='';
+}
+async function validerPointagePhoto(action){
+  const u = DB.users.find(x=>x.id===window._ptConfirmUserId && x.active);
+  const codeSaisi = (document.getElementById('ptConfirmCode')?.value || '').trim();
+  if(!u){ closePtConfirm(); return; }
+  const err = document.getElementById('ptConfirmErr');
+  if(!codeSaisi){ err.textContent = 'Saisissez votre mot de passe.'; return; }
+  const attendu = u.codePointage || u.pass;
+  if(codeSaisi.toLowerCase() !== String(attendu).toLowerCase()){
+    err.textContent = 'Mot de passe incorrect — pointage non validé.';
+    return;
+  }
+  closePtConfirm();
+  await registerPointage(u, 'photo');
+  renderPtPhotoGrid();
+}
 async function pointerParPhoto(userId){
   const u = DB.users.find(x=>x.id===userId && x.active);
   if(!u){ ptMsg('err','Compte introuvable ou suspendu.'); return; }
@@ -1415,52 +1494,50 @@ function renderPointage(){
       </div>
     </div>
     <div class="panel"><div class="panel-head"><h2>Codes de pointage du personnel</h2>
-        <button class="btn btn-primary btn-sm" onclick="genererCodesPointage()">Générer les codes manquants</button></div>
+        <button class="btn btn-primary btn-sm" onclick="genererCodesPointage()">Aligner les codes sur les mots de passe</button></div>
       <div class="panel-body">
-        <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Chaque membre du personnel — à commencer par vous — dispose d'un code de pointage court et personnel : il suffit de le saisir sur l'écran de pointage, sans mot de passe.</p>
-        <table><thead><tr><th>Membre</th><th>Rôle</th><th>Code d'accès</th><th>Code de pointage</th><th></th></tr></thead><tbody>
+        <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Le code de pointage de chaque membre est automatiquement <b>son mot de passe</b> : dès qu'il est créé, ou dès que son mot de passe change, son code de pointage suit. Il lui suffit de saisir ce mot de passe (sur l'écran de connexion, ou après avoir touché sa photo au pointage) — aucun code distinct à retenir.</p>
+        <table><thead><tr><th>Membre</th><th>Rôle</th><th>Code d'accès</th><th>Mot de passe / code de pointage</th><th></th></tr></thead><tbody>
         ${[...DB.users].sort((a,b)=> (a.role==='responsable_zone'?-1:1) - (b.role==='responsable_zone'?-1:1)).map(u=>`<tr>
           <td>${escapeHtml(u.prenom+' '+u.nom)}${u.role==='responsable_zone'?' <span class="badge badge-ok">Vous</span>':''}</td>
           <td><span class="badge badge-orange">${roleLabel(u.role)}</span></td>
           <td class="mono">${u.code}</td>
-          <td class="mono"><b>${u.codePointage || '<span class="badge badge-warn">Non défini</span>'}</b></td>
-          <td><button class="btn btn-ghost btn-sm" onclick="definirCodePointage('${u.id}')">${u.codePointage?'Modifier':'Définir'}</button></td>
+          <td class="mono"><b>${u.codePointage || u.pass || '<span class="badge badge-warn">Non défini</span>'}</b></td>
+          <td><button class="btn btn-ghost btn-sm" onclick="definirCodePointage('${u.id}')">Modifier</button></td>
         </tr>`).join('')}
         </tbody></table>
       </div>
     </div>`;
 }
+/* Le code de pointage EST le mot de passe : les deux sont désormais toujours
+   identiques et se mettent à jour ensemble. Ce bouton change donc le mot de
+   passe (et le code de pointage suit automatiquement). */
 async function definirCodePointage(userId){
   const u = DB.users.find(x=>x.id===userId);
   if(!u) return;
-  const code = prompt(`Code de pointage de ${u.prenom} ${u.nom} (4 à 6 chiffres conseillés) :`, u.codePointage||'');
-  if(code===null) return;
-  const clean = code.trim();
-  if(!clean){ u.codePointage = null; }
-  else {
-    if(DB.users.some(x=>x.id!==userId && x.codePointage && String(x.codePointage).toLowerCase()===clean.toLowerCase())){
-      toast('Ce code de pointage est déjà utilisé par quelqu\'un d\'autre'); return;
-    }
-    u.codePointage = clean;
-  }
-  logAction('Code de pointage', u.code+(clean?' : défini':' : retiré'));
+  const nouveau = prompt(`Nouveau mot de passe de ${u.prenom} ${u.nom} — sera aussi son code de pointage :`, '');
+  if(nouveau===null) return;
+  const clean = nouveau.trim();
+  if(!clean){ toast('Le mot de passe / code de pointage ne peut pas être vide'); return; }
+  u.pass = clean;
+  u.codePointage = clean;
+  logAction('Mot de passe / code de pointage', u.code+' : mis à jour');
   await saveDB();
-  toast(clean? 'Code de pointage enregistré' : 'Code de pointage retiré');
+  toast('Mot de passe et code de pointage mis à jour');
   render();
 }
+/* Aligne le code de pointage sur le mot de passe pour tout le monde
+   (utile pour les comptes créés avant l'activation de cette liaison). */
 async function genererCodesPointage(){
   let n = 0;
   DB.users.forEach(u=>{
-    if(u.codePointage) return;
-    let code;
-    do { code = String(Math.floor(1000 + Math.random()*9000)); }
-    while(DB.users.some(x=>x.codePointage===code));
-    u.codePointage = code; n++;
+    if(u.codePointage === u.pass) return;
+    u.codePointage = u.pass; n++;
   });
-  if(n===0){ toast('Tous les membres ont déjà un code de pointage'); return; }
-  logAction('Codes de pointage générés', n+' codes');
+  if(n===0){ toast('Tous les codes de pointage sont déjà à jour'); return; }
+  logAction('Codes de pointage synchronisés', n+' compte(s)');
   await saveDB();
-  toast(n+' code(s) de pointage généré(s)');
+  toast(n+' code(s) de pointage aligné(s) sur le mot de passe');
   render();
 }
 function methodeLabel(m){ return {empreinte:'☝ Empreinte', photo:'📷 Photo', code:'Code'}[m] || (m||'—'); }
@@ -1565,11 +1642,22 @@ async function doLogin(){
     return;
   }
   errBox.style.display='none';
-  SESSION = u;
   u.lastLogin = nowISO();
   logAction('Connexion', `${u.role} connecté`);
   await saveDB();
+  /* Connexion mémorisée sur cet ordinateur : la prochaine ouverture de
+     l'application entre directement, sans redemander les identifiants. */
+  try{ localStorage.setItem('mo_auto_session', u.id); }catch(_){}
+  enterApp(u);
+}
+
+/* Affiche l'application pour l'utilisateur donné — utilisé à la connexion
+   manuelle comme à la reconnexion automatique sur cet appareil. */
+function enterApp(u){
+  SESSION = u;
   document.getElementById('login-screen').style.display='none';
+  const ptScreen = document.getElementById('pointage-screen');
+  if(ptScreen) ptScreen.style.display='none';
   document.getElementById('app').classList.add('active');
   document.getElementById('app').style.display='grid';
   buildNav();
@@ -1584,6 +1672,9 @@ async function doLogin(){
 function logout(){
   logAction('Déconnexion','');
   saveDB();
+  /* La déconnexion explicite efface la mémorisation : il faudra se
+     reconnecter avec ses identifiants sur cet appareil. */
+  try{ localStorage.removeItem('mo_auto_session'); }catch(_){}
   SESSION = null;
   document.getElementById('app').classList.remove('active');
   document.getElementById('app').style.display='none';
@@ -1686,22 +1777,37 @@ function navItems(role){
   return [];
 }
 
+/* Sections repliées mémorisées le temps de la session (par nom de section) */
+window._navCollapsed = window._navCollapsed || {};
 function buildNav(){
   const nav = document.getElementById('navMenu');
   nav.innerHTML = '';
   const sections = navItems(SESSION.role);
   sections.forEach(sec=>{
+    const group = document.createElement('div');
+    group.className = 'nav-group' + (window._navCollapsed[sec.sec] ? ' collapsed' : '');
+
     const lab = document.createElement('div');
-    lab.className='nav-label'; lab.textContent = sec.sec;
-    nav.appendChild(lab);
+    lab.className='nav-label';
+    lab.innerHTML = `<span>${escapeHtml(sec.sec)}</span><span class="nav-fold-arrow">▾</span>`;
+    lab.onclick = ()=>{
+      const collapsed = group.classList.toggle('collapsed');
+      window._navCollapsed[sec.sec] = collapsed;
+    };
+    group.appendChild(lab);
+
+    const itemsWrap = document.createElement('div');
+    itemsWrap.className = 'nav-items';
     sec.items.forEach(it=>{
       const b = document.createElement('button');
       b.innerHTML = `<span class="dot"></span> ${it.label}`;
       b.dataset.view = it.id;
       if(['ca','om','tdr','tda','lp'].includes(it.id)) b.title = typeFullLabel(it.id);
       b.onclick = ()=> navigate(it.id);
-      nav.appendChild(b);
+      itemsWrap.appendChild(b);
     });
+    group.appendChild(itemsWrap);
+    nav.appendChild(group);
   });
 }
 
@@ -2521,6 +2627,7 @@ async function saveNewUser(role){
   const newUser = {
     id: uid(role.substring(0,2).toUpperCase()),
     role, code, pass, nom, prenom, tel, photo,
+    codePointage: pass, /* le code de pointage suit toujours le mot de passe */
     pdvId: pdvId || null,
     superviseurId: superviseurId || null,
     gerantId: gerantId,
@@ -2583,6 +2690,7 @@ async function saveEditUser(id){
   u.tel = document.getElementById('eu_tel').value.trim();
   u.code = newCode;
   u.pass = document.getElementById('eu_pass').value.trim();
+  u.codePointage = u.pass; /* le code de pointage suit automatiquement le nouveau mot de passe */
   const photoEl = document.getElementById('eu_photo_preview');
   if(photoEl) u.photo = photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : u.photo;
   const pdvSel = document.getElementById('eu_pdv');
@@ -4026,6 +4134,17 @@ document.getElementById('loginCode').addEventListener('keydown', e=>{ if(e.key==
   applyBranding();
   startCloudSync();
   startConnectionWatch();
+  /* Reconnexion automatique : si cet appareil a déjà une session
+     mémorisée (connexion précédente), on entre directement dans
+     l'application sans repasser par l'écran de connexion. */
+  try{
+    const savedId = localStorage.getItem('mo_auto_session');
+    if(savedId){
+      const u = DB.users.find(x=>x.id===savedId && x.active);
+      if(u) enterApp(u);
+      else localStorage.removeItem('mo_auto_session');
+    }
+  }catch(_){}
 })();
 </script>
 </body>
