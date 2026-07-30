@@ -108,6 +108,7 @@
   .pt-clock{text-align:center;font-family:var(--mono);font-size:26px;font-weight:700;color:#1F8A4C;margin:6px 0 12px;}
   .pt-ok{display:none;background:#EAF7EF;border:1px solid #BFE5CC;border-left:4px solid #1F8A4C;color:#146034;border-radius:5px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;line-height:1.6;}
   .pt-sep{text-align:center;font-size:11px;color:var(--ink-soft);margin:10px 0;}
+  .app-version{text-align:center;font-size:10.5px;color:var(--ink-soft);margin-top:14px;letter-spacing:.03em;}
   .btn-finger{width:100%;background:linear-gradient(135deg,#1F8A4C,#146034);color:#fff;font-size:15px;padding:13px;}
   .btn-finger:hover{filter:brightness(1.1);}
   /* Panneaux repliables : cliquer sur le titre replie/déplie */
@@ -154,6 +155,8 @@
   .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;flex-wrap:wrap;gap:10px;background:var(--topbar-bg);color:var(--topbar-text);padding:var(--topbar-pad);border-radius:8px;}
   .topbar h1{font-family:var(--disp);font-size:24px;margin:0 0 4px;letter-spacing:-.01em;color:inherit;}
   .topbar p{margin:0;color:var(--topbar-sub);font-size:13.5px;}
+  .topbar .btn-ghost{color:var(--topbar-text);border-color:var(--topbar-text);}
+  .topbar .btn-ghost:hover{background:rgba(255,255,255,.15);}
   .conn-badge{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;margin:10px 0 4px;padding:6px 9px;border-radius:5px;background:rgba(0,0,0,.18);color:var(--side-text);}
   .conn-dot{width:8px;height:8px;border-radius:50%;background:#8A8A93;flex-shrink:0;}
   .conn-badge.on .conn-dot{background:#3DDC84;box-shadow:0 0 6px rgba(61,220,132,.8);}
@@ -180,16 +183,19 @@
   .stat-sub{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
 
   .panel{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:20px;}
-  .panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:8px;}
-  .panel-head h2{font-family:var(--disp);font-size:16px;margin:0;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:8px;background:var(--panelhead-bg,transparent);}
+  .panel-head h2{font-family:var(--disp);font-size:16px;margin:0;color:var(--panelhead-text,var(--ink));}
+  .panel-head h2::before{color:var(--panelhead-text,var(--ink-soft));}
   .panel-body{padding:16px 18px;}
   .panel-actions{display:flex;gap:8px;flex-wrap:wrap;}
 
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th{
-    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--th-text,var(--ink-soft));background:var(--th-bg,transparent);
     padding:8px 10px;border-bottom:1.5px solid var(--line);white-space:nowrap;
   }
+  th:first-child{border-radius:5px 0 0 0;} th:last-child{border-radius:0 5px 0 0;}
   td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
   tr:hover td{background:#FBFAF8;}
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
@@ -326,6 +332,7 @@
     </div>
     <button class="btn btn-primary" onclick="doLogin()">Se connecter</button>
     <button class="btn btn-pointage" onclick="openPointageScreen()">🕐 Pointage du personnel</button>
+    <div class="app-version">Version 2.0 — EIGHT HUIT Technology</div>
   </div>
 </div>
 
@@ -342,13 +349,14 @@
     <div class="pt-ok" id="ptOk"></div>
     <button class="btn btn-finger" id="ptFingerBtn" onclick="pointerParEmpreinte()" style="display:none;">☝ Pointer par empreinte</button>
     <div class="pt-sep" id="ptSep" style="display:none;">— ou par code —</div>
-    <div class="field"><label>Code d'accès</label>
-      <input type="text" id="ptCode" placeholder="ex : AG-0001" autocomplete="off" autocapitalize="off"></div>
-    <div class="field"><label>Mot de passe</label>
-      <input type="text" id="ptPass" placeholder="Mot de passe" autocomplete="off" autocapitalize="off"></div>
+    <div class="field"><label>Code de pointage (ou code d'accès)</label>
+      <input type="text" id="ptCode" placeholder="ex : 4527 ou AG-0001" autocomplete="off" autocapitalize="off"></div>
+    <div class="field"><label>Mot de passe <span style="font-weight:400;color:var(--ink-soft);">(inutile avec un code de pointage)</span></label>
+      <input type="text" id="ptPass" placeholder="Seulement avec le code d'accès" autocomplete="off" autocapitalize="off"></div>
     <button class="btn btn-primary" onclick="pointerParCode()">Pointer (entrée / sortie)</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="openConfigEmpreinte()">⚙ Configurer l'empreinte sur cet appareil</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closePointageScreen()">← Retour à la connexion</button>
+    <div class="app-version">Version 2.0 — EIGHT HUIT Technology</div>
   </div>
 </div>
 
@@ -662,6 +670,12 @@ function applyTheme(themeId){
   root.setProperty('--btn-bg', t.btn || '#FF6600');
   root.setProperty('--btn-bg-dark', t.btnDark || shadeColor(t.btn || '#FF6600', -0.25));
   root.setProperty('--btn-text', '#FFFFFF');
+  /* Titres des entrées (en-têtes de tableaux) et têtes de panneaux : suivent le thème */
+  const base = t.btn || '#FF6600';
+  root.setProperty('--th-bg', base);
+  root.setProperty('--th-text', '#FFFFFF');
+  root.setProperty('--panelhead-bg', shadeColor(base, 0.88));
+  root.setProperty('--panelhead-text', shadeColor(base, -0.45));
 }
 /* Assombrit/éclaircit une couleur hex (f entre -1 et 1) */
 function shadeColor(hex, f){
@@ -1038,6 +1052,8 @@ function ensureDefaults(){
   if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:'',customThemes:[]};
   if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange';
   if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes=[];
+  if(!Array.isArray(DB.om)) DB.om=[];
+  if(!Array.isArray(DB.pointages)) DB.pointages=[];
 }
 async function loadDB(){
   let raw = null;
@@ -1135,10 +1151,14 @@ async function registerPointage(user, methode){
   document.getElementById('ptCode').value=''; document.getElementById('ptPass').value='';
 }
 async function pointerParCode(){
-  const code = document.getElementById('ptCode').value;
+  const code = (document.getElementById('ptCode').value||'').trim();
   const pass = document.getElementById('ptPass').value;
-  const u = findUser(code, pass);
-  if(!u){ ptMsg('err','Code ou mot de passe invalide.'); return; }
+  if(!code){ ptMsg('err','Saisissez votre code de pointage ou votre code d\'accès.'); return; }
+  /* 1) Code de pointage dédié (créé par le responsable) — aucun mot de passe requis */
+  let u = DB.users.find(x=> x.active && x.codePointage && String(x.codePointage).toLowerCase()===code.toLowerCase());
+  /* 2) Sinon : code d'accès + mot de passe */
+  if(!u) u = findUser(code, pass);
+  if(!u){ ptMsg('err','Code de pointage inconnu, ou code d\'accès / mot de passe invalide.'); return; }
   await registerPointage(u, 'code');
 }
 /* ---------- Empreinte digitale (WebAuthn, liée à CET appareil) ----------
@@ -1238,7 +1258,8 @@ function renderPointage(){
       ['Encore en poste', enPoste, 'sortie non pointée'],
       ['Sorties pointées', rows.filter(p=>p.sortie).length, ''],
     ])}
-    <div class="panel"><div class="panel-head"><h2>Liste des présences — ${date}</h2></div>
+    <div class="panel"><div class="panel-head"><h2>Liste des présences — ${date}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('lp')">Voir les LP des gérants →</button></div>
       <div class="panel-body">
         ${rows.length===0 ? emptyState('Aucun pointage', 'Personne n\'a encore pointé à cette date.') : `
         <table><thead><tr><th>Employé</th><th>Code</th><th>Rôle</th><th>Entrée</th><th>Sortie</th><th>Méthode</th></tr></thead><tbody>
@@ -1255,7 +1276,55 @@ function renderPointage(){
         }).join('')}
         </tbody></table>`}
       </div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Codes de pointage du personnel</h2>
+        <button class="btn btn-primary btn-sm" onclick="genererCodesPointage()">Générer les codes manquants</button></div>
+      <div class="panel-body">
+        <p class="muted" style="margin:0 0 12px;font-size:12.5px;">Chaque membre du personnel — à commencer par vous — dispose d'un code de pointage court et personnel : il suffit de le saisir sur l'écran de pointage, sans mot de passe.</p>
+        <table><thead><tr><th>Membre</th><th>Rôle</th><th>Code d'accès</th><th>Code de pointage</th><th></th></tr></thead><tbody>
+        ${[...DB.users].sort((a,b)=> (a.role==='responsable_zone'?-1:1) - (b.role==='responsable_zone'?-1:1)).map(u=>`<tr>
+          <td>${escapeHtml(u.prenom+' '+u.nom)}${u.role==='responsable_zone'?' <span class="badge badge-ok">Vous</span>':''}</td>
+          <td><span class="badge badge-orange">${roleLabel(u.role)}</span></td>
+          <td class="mono">${u.code}</td>
+          <td class="mono"><b>${u.codePointage || '<span class="badge badge-warn">Non défini</span>'}</b></td>
+          <td><button class="btn btn-ghost btn-sm" onclick="definirCodePointage('${u.id}')">${u.codePointage?'Modifier':'Définir'}</button></td>
+        </tr>`).join('')}
+        </tbody></table>
+      </div>
     </div>`;
+}
+async function definirCodePointage(userId){
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u) return;
+  const code = prompt(`Code de pointage de ${u.prenom} ${u.nom} (4 à 6 chiffres conseillés) :`, u.codePointage||'');
+  if(code===null) return;
+  const clean = code.trim();
+  if(!clean){ u.codePointage = null; }
+  else {
+    if(DB.users.some(x=>x.id!==userId && x.codePointage && String(x.codePointage).toLowerCase()===clean.toLowerCase())){
+      toast('Ce code de pointage est déjà utilisé par quelqu\'un d\'autre'); return;
+    }
+    u.codePointage = clean;
+  }
+  logAction('Code de pointage', u.code+(clean?' : défini':' : retiré'));
+  await saveDB();
+  toast(clean? 'Code de pointage enregistré' : 'Code de pointage retiré');
+  render();
+}
+async function genererCodesPointage(){
+  let n = 0;
+  DB.users.forEach(u=>{
+    if(u.codePointage) return;
+    let code;
+    do { code = String(Math.floor(1000 + Math.random()*9000)); }
+    while(DB.users.some(x=>x.codePointage===code));
+    u.codePointage = code; n++;
+  });
+  if(n===0){ toast('Tous les membres ont déjà un code de pointage'); return; }
+  logAction('Codes de pointage générés', n+' codes');
+  await saveDB();
+  toast(n+' code(s) de pointage généré(s)');
+  render();
 }
 function pointageRowsFor(date){
   const rows = [['Employé','Code','Rôle','Entrée','Sortie','Méthode']];
@@ -1312,6 +1381,8 @@ function seedDB(){
     tdr: [], // {id, gerantId, date, montant, ref, superviseurId}
     tda: [], // {id, gerantId, date, montant, ref, superviseurId}
     lp: [],  // LP — liste des présences {id, gerantId, date, quantite, superviseurId}
+    om: [],  // OM — Orange Money {id, gerantId, date, montant, ref, superviseurId}
+    pointages: [], // {id, userId, date, entree, sortie, methodeIn, methodeOut}
     activityLog: [], // {id, ts, userId, userNom, role, action, details}
     reports: [], // generated report snapshots
     objectifs: {}, // { "type_gerantId_YYYY-MM": montantCible }
@@ -2556,10 +2627,25 @@ function openPDVProfile(id){
   `;
   document.getElementById('modalFoot').innerHTML = `
     <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>
+    ${SESSION.role==='responsable_zone' || (SESSION.role==='superviseur' && SESSION.perms && SESSION.perms.supprimer) ? `<button class="btn btn-danger btn-sm" onclick="deletePDV('${p.id}')">🗑 Supprimer</button>` : ''}
     <button class="btn btn-primary btn-sm" onclick="closeModal();openEditPDV('${p.id}')">Modifier</button>
   `;
   openModal();
   if(gerant) drawChart('pdv_chart','bar', series.labels, series.data, '#FF6600', 'CA (GNF)');
+}
+async function deletePDV(id){
+  const p = DB.pdvs.find(x=>x.id===id);
+  if(!p) return;
+  const nbSims = DB.sims.filter(s=>s.pdvId===id).length;
+  if(!confirm(`Supprimer le point de vente « ${p.nom} » ?${nbSims? `\n${nbSims} SIM y sont rattachées : elles seront détachées de ce PDV (leur historique est conservé).`:''}`)) return;
+  DB.pdvs = DB.pdvs.filter(x=>x.id!==id);
+  DB.sims.forEach(s=>{ if(s.pdvId===id) s.pdvId = null; });
+  DB.users.forEach(u=>{ if(u.pdvId===id) u.pdvId = null; });
+  logAction('Suppression PDV', p.nom);
+  await saveDB();
+  closeModal();
+  toast('Point de vente supprimé');
+  render();
 }
 function openCreatePDV(){
   document.getElementById('modalTitle').textContent = 'Nouveau point de vente';
@@ -2678,7 +2764,20 @@ function renderLP(){
         }).join('')}
         </tbody></table>`}
       </div>
-    </div>`;
+    </div>
+    ${SESSION.role==='responsable_zone' ? `
+    <div class="panel"><div class="panel-head"><h2>Pointage du personnel — ${date}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="window._ptViewDate='${date}';navigate('pointage')">Gérer le pointage →</button></div>
+      <div class="panel-body">
+        ${DB.pointages.filter(p=>p.date===date).length===0 ? emptyState('Aucun pointage','Personne n\'a pointé à cette date.') : `
+        <table><thead><tr><th>Employé</th><th>Rôle</th><th>Entrée</th><th>Sortie</th></tr></thead><tbody>
+        ${DB.pointages.filter(p=>p.date===date).map(p=>{
+          const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:'',role:''};
+          return `<tr><td>${escapeHtml(u.prenom+' '+u.nom)}</td><td><span class="badge badge-orange">${roleLabel(u.role)||'—'}</span></td><td class="mono">${p.entree||'—'}</td><td class="mono">${p.sortie||'<span class="badge badge-warn">En poste</span>'}</td></tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>` : ''}`;
 }
 function lpRowsFor(date){
   const rows = [['Gérant','Superviseur','Présences','Référence','Notes']];
