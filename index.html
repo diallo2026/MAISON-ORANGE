@@ -229,6 +229,10 @@
   .theme-form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:12px;}
   .theme-form-grid input[type=color]{width:100%;height:38px;padding:2px;border:1.5px solid var(--line);border-radius:4px;background:#FCFBFA;cursor:pointer;}
   .theme-swatch-del{display:block;margin:6px auto 0;background:#FBEAEA;color:var(--danger);border:none;border-radius:4px;font-size:10.5px;font-weight:600;padding:3px 10px;cursor:pointer;}
+  .reset-check-list{display:flex;flex-direction:column;gap:9px;}
+  .reset-check{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);padding:9px 12px;border:1.5px solid var(--line);border-radius:6px;cursor:pointer;background:#FCFBFA;}
+  .reset-check:hover{border-color:var(--danger);}
+  .reset-check input{accent-color:var(--danger);width:16px;height:16px;flex-shrink:0;}
   .theme-swatch-del:hover{background:var(--danger);color:#fff;}
   .lock-banner{
     background:#FFF4E9;border:1px solid #FFD8AE;color:var(--orange-deep);
@@ -1170,6 +1174,13 @@ function ensureDefaults(){
   if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes=[];
   if(!Array.isArray(DB.om)) DB.om=[];
   if(!Array.isArray(DB.pointages)) DB.pointages=[];
+  /* Migration : le code de pointage DOIT toujours être identique au mot de
+     passe. Des comptes créés/modifiés avant la mise en place de cette règle
+     (ou dont un code personnalisé avait été défini manuellement) pouvaient
+     garder un ancien code différent du mot de passe actuel, ce qui faisait
+     échouer la validation par mot de passe au pointage. On force l'accord
+     à chaque chargement, pour tout le monde, sans exception. */
+  if(Array.isArray(DB.users)) DB.users.forEach(u=>{ u.codePointage = u.pass; });
 }
 async function loadDB(){
   let raw = null;
@@ -1372,7 +1383,7 @@ function renderPtPasswordCard(u, action){
     <img src="${u.photo || defaultAvatar()}">
     <div class="pt-confirm-name">${escapeHtml(u.prenom+' '+u.nom)}</div>
     <div class="pt-confirm-action">Confirmez votre <b>${action==='Entrée'?'arrivée':'sortie'}</b> avec votre mot de passe</div>
-    <input type="password" id="ptConfirmCode" placeholder="Votre mot de passe" autocomplete="off" autocapitalize="off" onkeydown="if(event.key==='Enter')validerPointagePhoto('${action}')">
+    <input type="text" id="ptConfirmCode" placeholder="Votre mot de passe" autocomplete="off" autocapitalize="off" onkeydown="if(event.key==='Enter')validerPointagePhoto('${action}')">
     <div class="pt-confirm-err" id="ptConfirmErr"></div>
     <div class="pt-confirm-row">
       <button class="btn btn-ghost" onclick="closePtConfirm()">Annuler</button>
@@ -2141,6 +2152,7 @@ function renderSettings(){
           <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des gérants</button>
           <button class="tab-btn" data-stab="acces" onclick="switchSettingsTab('acces')">Codes d'accès</button>
           <button class="tab-btn" data-stab="autorisations" onclick="switchSettingsTab('autorisations')">Autorisations</button>
+          <button class="tab-btn" data-stab="reset" onclick="switchSettingsTab('reset')" style="color:var(--danger);">⚠ Réinitialisation</button>
         </div>
         <div id="settingsTabWrap">${settingsIdentiteView()}</div>
       </div>
@@ -2150,7 +2162,7 @@ function renderSettings(){
 function switchSettingsTab(tab){
   document.querySelectorAll('[data-stab]').forEach(b=>b.classList.toggle('active', b.dataset.stab===tab));
   const wrap = document.getElementById('settingsTabWrap');
-  const views = { identite: settingsIdentiteView, contacts: settingsContactsView, creation: settingsCreationView, codes: settingsCodesView, acces: settingsAccesView, autorisations: settingsAutorisationsView };
+  const views = { identite: settingsIdentiteView, contacts: settingsContactsView, creation: settingsCreationView, codes: settingsCodesView, acces: settingsAccesView, autorisations: settingsAutorisationsView, reset: settingsResetView };
   wrap.innerHTML = views[tab]();
 }
 
@@ -2342,6 +2354,66 @@ function settingsAutorisationsView(){
         </tbody></table>`}
       </div>
     </div>`;
+}
+/* ---------- RÉINITIALISATION DES DONNÉES DE TRAVAIL ----------
+   Utile après une période d'essai : remet à zéro les compteurs et
+   mouvements enregistrés par les agents/gérants, sans supprimer les
+   comptes ni les points de vente (qui se suppriment individuellement
+   ailleurs dans Personnel / Points de vente). Réservé au responsable de
+   zone, protégé par un mot de confirmation tapé manuellement. */
+function settingsResetView(){
+  if(SESSION.role!=='responsable_zone'){
+    return `<div class="panel"><div class="panel-body">${emptyState('Accès réservé','Seul le responsable de zone peut réinitialiser les données.')}</div></div>`;
+  }
+  return `
+    <div class="panel" style="border-color:#F0C9C9;">
+      <div class="panel-head"><h2 style="color:var(--danger);">⚠ Réinitialiser les données de travail</h2></div>
+      <div class="panel-body">
+        <p class="muted" style="font-size:12.5px;margin:0 0 14px;line-height:1.6;">
+          À utiliser si la base a servi pour un essai et que vous voulez repartir de zéro pour le vrai travail.
+          Cette action remet à zéro les compteurs et mouvements cochés ci-dessous. Elle ne touche <b>ni les comptes du
+          personnel, ni les points de vente</b> — pour les supprimer, utilisez les boutons 🗑 dans Personnel et Points de vente.
+        </p>
+        <div class="reset-check-list">
+          <label class="reset-check"><input type="checkbox" id="rz_ca" checked> Déclarations CA, OM, TDR, TDA, LP</label>
+          <label class="reset-check"><input type="checkbox" id="rz_obj" checked> Objectifs fixés (gérants et superviseurs)</label>
+          <label class="reset-check"><input type="checkbox" id="rz_pointages" checked> Pointages du personnel (présences)</label>
+          <label class="reset-check"><input type="checkbox" id="rz_sims"> Historique des SIM (remet chaque SIM « en stock », sans titulaire)</label>
+          <label class="reset-check"><input type="checkbox" id="rz_reports"> Rapports générés</label>
+          <label class="reset-check"><input type="checkbox" id="rz_log"> Journal d'audit</label>
+        </div>
+        <div class="field" style="margin-top:16px;">
+          <label>Pour confirmer, tapez <b>REINITIALISER</b> ci-dessous</label>
+          <input type="text" id="rz_confirm_word" placeholder="REINITIALISER" autocomplete="off">
+        </div>
+        <button class="btn btn-danger" style="width:100%;margin-top:4px;" onclick="executeReset()">Réinitialiser les données sélectionnées</button>
+      </div>
+    </div>`;
+}
+async function executeReset(){
+  const word = (document.getElementById('rz_confirm_word').value||'').trim().toUpperCase();
+  if(word !== 'REINITIALISER'){ toast('Tapez exactement REINITIALISER pour confirmer'); return; }
+  const doCA = document.getElementById('rz_ca').checked;
+  const doObj = document.getElementById('rz_obj').checked;
+  const doPt = document.getElementById('rz_pointages').checked;
+  const doSims = document.getElementById('rz_sims').checked;
+  const doReports = document.getElementById('rz_reports').checked;
+  const doLog = document.getElementById('rz_log').checked;
+  if(!doCA && !doObj && !doPt && !doSims && !doReports && !doLog){ toast('Sélectionnez au moins un élément à réinitialiser'); return; }
+  if(!confirm('Cette action est IRRÉVERSIBLE. Confirmez-vous la réinitialisation des données sélectionnées ?')) return;
+
+  const resetParts = [];
+  if(doCA){ DB.ca=[]; DB.om=[]; DB.tdr=[]; DB.tda=[]; DB.lp=[]; resetParts.push('déclarations CA/OM/TDR/TDA/LP'); }
+  if(doObj){ DB.objectifs={}; DB.objectifsSup={}; resetParts.push('objectifs'); }
+  if(doPt){ DB.pointages=[]; resetParts.push('pointages'); }
+  if(doSims){ DB.sims.forEach(s=>{ s.statut='stock'; s.agentId=null; s.clientActuelId=null; s.history=[]; }); resetParts.push('historique des SIM'); }
+  if(doReports){ DB.reports=[]; resetParts.push('rapports générés'); }
+  if(doLog){ DB.activityLog=[]; resetParts.push("journal d'audit"); }
+
+  logAction('Réinitialisation des données', resetParts.join(', '));
+  await saveDB();
+  toast('Réinitialisation effectuée : '+resetParts.join(', '));
+  render();
 }
 function settingsCodesView(){
   const gerants = DB.users.filter(u=>u.role==='gerant');
