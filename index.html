@@ -138,6 +138,10 @@
   .pt-confirm-row{display:flex;gap:8px;}
   .pt-confirm-row .btn{flex:1;margin-top:0;}
   .pt-confirm-err{color:var(--danger);font-size:11.5px;margin:-4px 0 10px;min-height:14px;}
+  .pt-choice-row{display:flex;gap:10px;justify-content:center;margin:4px 0 14px;}
+  .pt-choice-opt{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;padding:8px 16px;border:1.5px solid var(--line);border-radius:6px;background:#fff;}
+  .pt-choice-opt:has(input:checked){border-color:#1F8A4C;background:#EAF7EF;color:#146034;}
+  .pt-choice-opt input{accent-color:#1F8A4C;}
   /* Panneaux repliables : bouton ▾ sur chaque panneau + tête cliquable */
   .panel-head{cursor:pointer;user-select:none;}
   .fold-btn{
@@ -424,12 +428,6 @@
       <div class="pt-photo-grid" id="ptPhotoGrid"></div>
       <div id="ptConfirmZone" style="display:none;"></div>
     </div>
-    <div class="pt-sep">— ou par code —</div>
-    <div class="field"><label>Code de pointage (ou code d'accès)</label>
-      <input type="text" id="ptCode" placeholder="ex : 4527 ou AG-0001" autocomplete="off" autocapitalize="off"></div>
-    <div class="field"><label>Mot de passe <span style="font-weight:400;color:var(--ink-soft);">(inutile avec un code de pointage)</span></label>
-      <input type="text" id="ptPass" placeholder="Seulement avec le code d'accès" autocomplete="off" autocapitalize="off"></div>
-    <button class="btn btn-primary" onclick="pointerParCode()">Pointer (entrée / sortie)</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="openConfigEmpreinte()">⚙ Configurer l'empreinte sur cet appareil</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closePointageScreen()">← Retour à la connexion</button>
     <div class="app-version">Version 2.0 — EIGHT HUIT Technology</div>
@@ -1246,38 +1244,34 @@ function ptMsg(kind, txt){
   err.style.display = kind==='err' ? 'block':'none'; err.textContent = kind==='err'? txt:'';
   ok.style.display = kind==='ok' ? 'block':'none'; ok.innerHTML = kind==='ok'? txt:'';
 }
-/* Enregistre l'entrée (1er pointage du jour) ou la sortie (2e pointage) */
-async function registerPointage(user, methode){
+/* Enregistre l'entrée ou la sortie. Sans action forcée : déduit
+   automatiquement (1er pointage du jour = entrée, 2e = sortie). Avec une
+   action forcée (choix explicite via la case à cocher du pointage par
+   photo), c'est ce choix qui prime. */
+async function registerPointage(user, methode, forcedAction){
   const today = todayStr();
   const heure = new Date().toLocaleTimeString('fr-FR');
   let p = DB.pointages.find(x=>x.userId===user.id && x.date===today);
-  if(!p){
-    p = { id: uid('PT'), userId: user.id, date: today, entree: heure, sortie: null, methodeIn: methode, methodeOut: null };
-    DB.pointages.push(p);
-    ptMsg('ok', `✅ <b>Entrée enregistrée</b><br>${escapeHtml(user.prenom+' '+user.nom)} (${user.code})<br>${today} à <b>${heure}</b>`);
-  } else if(!p.sortie){
-    p.sortie = heure; p.methodeOut = methode;
-    ptMsg('ok', `✅ <b>Sortie enregistrée</b><br>${escapeHtml(user.prenom+' '+user.nom)} (${user.code})<br>Entrée : ${p.entree} — Sortie : <b>${heure}</b>`);
-  } else {
+  const action = forcedAction || (!p ? 'Entrée' : (!p.sortie ? 'Sortie' : null));
+  if(action===null){
     ptMsg('err', `${user.prenom} ${user.nom} a déjà pointé l'entrée (${p.entree}) et la sortie (${p.sortie}) aujourd'hui.`);
     return;
   }
+  if(!p){
+    p = { id: uid('PT'), userId: user.id, date: today, entree: null, sortie: null, methodeIn: null, methodeOut: null };
+    DB.pointages.push(p);
+  }
+  if(action==='Entrée'){
+    p.entree = heure; p.methodeIn = methode;
+    ptMsg('ok', `✅ <b>Entrée enregistrée</b><br>${escapeHtml(user.prenom+' '+user.nom)} (${user.code})<br>${today} à <b>${heure}</b>`);
+  } else {
+    p.sortie = heure; p.methodeOut = methode;
+    ptMsg('ok', `✅ <b>Sortie enregistrée</b><br>${escapeHtml(user.prenom+' '+user.nom)} (${user.code})<br>Entrée : ${p.entree||'—'} — Sortie : <b>${heure}</b>`);
+  }
   const prev = SESSION; SESSION = user;
-  logAction('Pointage', (p.sortie? 'Sortie':'Entrée')+' par '+methode);
+  logAction('Pointage', action+' par '+methode);
   SESSION = prev;
   await saveDB();
-  document.getElementById('ptCode').value=''; document.getElementById('ptPass').value='';
-}
-async function pointerParCode(){
-  const code = (document.getElementById('ptCode').value||'').trim();
-  const pass = document.getElementById('ptPass').value;
-  if(!code){ ptMsg('err','Saisissez votre code de pointage ou votre code d\'accès.'); return; }
-  /* 1) Code de pointage dédié (créé par le responsable) — aucun mot de passe requis */
-  let u = DB.users.find(x=> x.active && x.codePointage && String(x.codePointage).toLowerCase()===code.toLowerCase());
-  /* 2) Sinon : code d'accès + mot de passe */
-  if(!u) u = findUser(code, pass);
-  if(!u){ ptMsg('err','Code de pointage inconnu, ou code d\'accès / mot de passe invalide.'); return; }
-  await registerPointage(u, 'code');
 }
 function togglePtPhotoGrid(){
   const panel = document.getElementById('ptPhotoPanel');
@@ -1315,17 +1309,19 @@ function renderPtPhotoGrid(){
   }).join('') || '<div class="muted" style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;">Aucun membre actif.</div>';
 }
 function roleOrder(r){ return {responsable_zone:0, superviseur:1, gerant:2, agent:3}[r] ?? 9; }
-/* Étape 2 : après avoir touché sa photo, l'employé confirme avec son code
-   personnel (code de pointage, ou code d'accès) avant que l'entrée/sortie
-   ne soit enregistrée — évite qu'un pointage soit pris à la place d'un autre. */
+/* Étape 2 : après avoir touché sa photo — si c'est son premier pointage du
+   jour, la carte de mot de passe s'affiche directement (action = Entrée).
+   Si un pointage existe déjà pour aujourd'hui, une case à cocher permet de
+   choisir explicitement Entrée ou Sortie avant de demander le mot de passe. */
 function selectPointagePhoto(userId){
   const u = DB.users.find(x=>x.id===userId && x.active);
   if(!u) return;
   const today = todayStr();
   const p = DB.pointages.find(x=>x.userId===u.id && x.date===today);
-  const action = (!p) ? 'Entrée' : (!p.sortie ? 'Sortie' : null);
+  window._ptConfirmUserId = u.id;
   const zone = document.getElementById('ptConfirmZone');
-  if(action===null){
+
+  if(p && p.sortie){
     zone.style.display='block';
     zone.innerHTML = `<div class="pt-confirm-card">
       <img src="${u.photo || defaultAvatar()}">
@@ -1335,7 +1331,42 @@ function selectPointagePhoto(userId){
     </div>`;
     return;
   }
-  window._ptConfirmUserId = u.id;
+
+  if(!p){
+    renderPtPasswordCard(u, 'Entrée');
+  } else {
+    renderPtChoiceCard(u);
+  }
+}
+/* Case à cocher Entrée / Sortie (2e pointage du jour ou plus) */
+function renderPtChoiceCard(u){
+  const zone = document.getElementById('ptConfirmZone');
+  zone.style.display='block';
+  zone.innerHTML = `<div class="pt-confirm-card">
+    <img src="${u.photo || defaultAvatar()}">
+    <div class="pt-confirm-name">${escapeHtml(u.prenom+' '+u.nom)}</div>
+    <div class="pt-confirm-action">Que souhaitez-vous pointer ?</div>
+    <div class="pt-choice-row">
+      <label class="pt-choice-opt"><input type="radio" name="ptChoiceAction" value="Entrée"> Entrée</label>
+      <label class="pt-choice-opt"><input type="radio" name="ptChoiceAction" value="Sortie" checked> Sortie</label>
+    </div>
+    <div class="pt-confirm-row">
+      <button class="btn btn-ghost" onclick="closePtConfirm()">Annuler</button>
+      <button class="btn btn-primary" onclick="confirmPtChoice('${u.id}')">Continuer</button>
+    </div>
+  </div>`;
+}
+function confirmPtChoice(userId){
+  const u = DB.users.find(x=>x.id===userId && x.active);
+  if(!u) return;
+  const sel = document.querySelector('input[name="ptChoiceAction"]:checked');
+  const action = sel ? sel.value : 'Sortie';
+  renderPtPasswordCard(u, action);
+}
+/* Carte finale : uniquement le mot de passe pour confirmer l'action choisie */
+function renderPtPasswordCard(u, action){
+  window._ptConfirmAction = action;
+  const zone = document.getElementById('ptConfirmZone');
   zone.style.display='block';
   zone.innerHTML = `<div class="pt-confirm-card">
     <img src="${u.photo || defaultAvatar()}">
@@ -1352,6 +1383,7 @@ function selectPointagePhoto(userId){
 }
 function closePtConfirm(){
   window._ptConfirmUserId = null;
+  window._ptConfirmAction = null;
   const zone = document.getElementById('ptConfirmZone');
   zone.style.display='none'; zone.innerHTML='';
 }
@@ -1367,13 +1399,7 @@ async function validerPointagePhoto(action){
     return;
   }
   closePtConfirm();
-  await registerPointage(u, 'photo');
-  renderPtPhotoGrid();
-}
-async function pointerParPhoto(userId){
-  const u = DB.users.find(x=>x.id===userId && x.active);
-  if(!u){ ptMsg('err','Compte introuvable ou suspendu.'); return; }
-  await registerPointage(u, 'photo');
+  await registerPointage(u, 'photo', action);
   renderPtPhotoGrid();
 }
 
@@ -1478,7 +1504,7 @@ function renderPointage(){
         <button class="btn btn-ghost btn-sm" onclick="navigate('lp')">Voir les LP des gérants →</button></div>
       <div class="panel-body">
         ${rows.length===0 ? emptyState('Aucun pointage', 'Personne n\'a encore pointé à cette date.') : `
-        <table><thead><tr><th>Employé</th><th>Code</th><th>Rôle</th><th>Entrée</th><th>Sortie</th><th>Méthode</th></tr></thead><tbody>
+        <table><thead><tr><th>Employé</th><th>Code</th><th>Rôle</th><th>Entrée</th><th>Sortie</th><th>Méthode</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
         ${rows.map(p=>{
           const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:'',code:'—',role:''};
           return `<tr>
@@ -1488,6 +1514,10 @@ function renderPointage(){
             <td class="mono">${p.entree||'—'}</td>
             <td class="mono">${p.sortie||'<span class="badge badge-warn">En poste</span>'}</td>
             <td class="muted">${methodeLabel(p.methodeIn)}${p.methodeOut? ' / '+methodeLabel(p.methodeOut):''}</td>
+            ${SESSION.role==='responsable_zone' ? `<td style="white-space:nowrap;">
+              <button class="btn btn-ghost btn-sm" onclick="openEditPointage('${p.id}')">Modifier</button>
+              <button class="btn btn-danger btn-sm" onclick="deletePointage('${p.id}')">🗑</button>
+            </td>` : ''}
           </tr>`;
         }).join('')}
         </tbody></table>`}
@@ -1538,6 +1568,46 @@ async function genererCodesPointage(){
   logAction('Codes de pointage synchronisés', n+' compte(s)');
   await saveDB();
   toast(n+' code(s) de pointage aligné(s) sur le mot de passe');
+  render();
+}
+/* Modification / suppression d'un pointage enregistré — réservé au RZ */
+function openEditPointage(id){
+  const p = DB.pointages.find(x=>x.id===id);
+  if(!p) return;
+  const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:''};
+  document.getElementById('modalTitle').textContent = 'Modifier le pointage — '+u.prenom+' '+u.nom;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>Heure d'entrée</label><input type="text" id="ep_entree" value="${escapeHtml(p.entree||'')}" placeholder="ex : 08:02:15"></div>
+    <div class="field"><label>Heure de sortie</label><input type="text" id="ep_sortie" value="${escapeHtml(p.sortie||'')}" placeholder="ex : 17:31:40 (laisser vide si absent)"></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveEditPointage('${id}')">Enregistrer</button>
+  `;
+  openModal();
+}
+async function saveEditPointage(id){
+  const p = DB.pointages.find(x=>x.id===id);
+  if(!p) return;
+  const entree = document.getElementById('ep_entree').value.trim();
+  const sortie = document.getElementById('ep_sortie').value.trim();
+  p.entree = entree || null;
+  p.sortie = sortie || null;
+  logAction('Pointage modifié', (DB.users.find(u=>u.id===p.userId)||{}).code+' — '+p.date);
+  await saveDB();
+  closeModal();
+  toast('Pointage mis à jour');
+  render();
+}
+async function deletePointage(id){
+  const p = DB.pointages.find(x=>x.id===id);
+  if(!p) return;
+  const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:''};
+  if(!confirm(`Supprimer le pointage de ${u.prenom} ${u.nom} du ${p.date} ?`)) return;
+  DB.pointages = DB.pointages.filter(x=>x.id!==id);
+  logAction('Pointage supprimé', (u.code||'')+' — '+p.date);
+  await saveDB();
+  toast('Pointage supprimé');
   render();
 }
 function methodeLabel(m){ return {empreinte:'☝ Empreinte', photo:'📷 Photo', code:'Code'}[m] || (m||'—'); }
