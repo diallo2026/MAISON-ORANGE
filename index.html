@@ -74,10 +74,10 @@
     appearance:none;border:none;cursor:pointer;font-family:var(--sans);font-weight:600;
     border-radius:4px;padding:11px 18px;font-size:14px;transition:.15s;
   }
-  .btn-primary{background:var(--orange);color:#fff;width:100%;margin-top:8px;}
-  .btn-primary:hover{background:var(--orange-dark);}
+  .btn-primary{background:var(--btn-bg,var(--orange));color:var(--btn-text,#fff);width:100%;margin-top:8px;}
+  .btn-primary:hover{background:var(--btn-bg-dark,var(--orange-dark));}
   .btn-ghost{background:transparent;color:var(--ink-soft);border:1.5px solid var(--line);}
-  .btn-ghost:hover{border-color:var(--orange);color:var(--orange-dark);}
+  .btn-ghost:hover{border-color:var(--btn-bg,var(--orange));color:var(--btn-bg-dark,var(--orange-dark));}
   .btn-sm{padding:6px 12px;font-size:12px;}
   .btn-danger{background:#FBEAEA;color:var(--danger);}
   .btn-danger:hover{background:var(--danger);color:#fff;}
@@ -102,6 +102,19 @@
     opacity:.05;pointer-events:none;
   }
   .login-card > *{position:relative;}
+  .btn-pointage{width:100%;margin-top:10px;background:#1F8A4C;color:#fff;}
+  .btn-pointage:hover{background:#146034;}
+  #pointage-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .pt-clock{text-align:center;font-family:var(--mono);font-size:26px;font-weight:700;color:#1F8A4C;margin:6px 0 12px;}
+  .pt-ok{display:none;background:#EAF7EF;border:1px solid #BFE5CC;border-left:4px solid #1F8A4C;color:#146034;border-radius:5px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;line-height:1.6;}
+  .pt-sep{text-align:center;font-size:11px;color:var(--ink-soft);margin:10px 0;}
+  .btn-finger{width:100%;background:linear-gradient(135deg,#1F8A4C,#146034);color:#fff;font-size:15px;padding:13px;}
+  .btn-finger:hover{filter:brightness(1.1);}
+  /* Panneaux repliables : cliquer sur le titre replie/déplie */
+  .panel-head h2{cursor:pointer;user-select:none;}
+  .panel-head h2::before{content:'▾';display:inline-block;margin-right:7px;font-size:11px;color:var(--ink-soft);transition:.15s;}
+  .panel.folded .panel-head h2::before{transform:rotate(-90deg);}
+  .panel.folded .panel-body{display:none;}
 
   /* ---------- APP SHELL ---------- */
   #app{display:none;min-height:100vh;grid-template-columns:230px 1fr;}
@@ -312,6 +325,30 @@
       <input type="text" id="loginPass" placeholder="Mot de passe" autocomplete="off" autocapitalize="off">
     </div>
     <button class="btn btn-primary" onclick="doLogin()">Se connecter</button>
+    <button class="btn btn-pointage" onclick="openPointageScreen()">🕐 Pointage du personnel</button>
+  </div>
+</div>
+
+<!-- ============ POINTAGE ============ -->
+<div id="pointage-screen" style="display:none;">
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <img class="login-logo" id="ptLogoImg" alt="EIGHT HUIT Technology">
+      <div class="login-brand-line"><span class="eh-red">EIGHT</span> <span class="eh-yellow">HUIT</span> <span class="eh-green">Technology</span></div>
+    </div>
+    <p class="brand-sub" style="text-align:center;">Pointage du personnel</p>
+    <div class="pt-clock" id="ptClock">—</div>
+    <div class="login-err" id="ptErr"></div>
+    <div class="pt-ok" id="ptOk"></div>
+    <button class="btn btn-finger" id="ptFingerBtn" onclick="pointerParEmpreinte()" style="display:none;">☝ Pointer par empreinte</button>
+    <div class="pt-sep" id="ptSep" style="display:none;">— ou par code —</div>
+    <div class="field"><label>Code d'accès</label>
+      <input type="text" id="ptCode" placeholder="ex : AG-0001" autocomplete="off" autocapitalize="off"></div>
+    <div class="field"><label>Mot de passe</label>
+      <input type="text" id="ptPass" placeholder="Mot de passe" autocomplete="off" autocapitalize="off"></div>
+    <button class="btn btn-primary" onclick="pointerParCode()">Pointer (entrée / sortie)</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="openConfigEmpreinte()">⚙ Configurer l'empreinte sur cet appareil</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px;" onclick="closePointageScreen()">← Retour à la connexion</button>
   </div>
 </div>
 
@@ -524,34 +561,86 @@ function drawChart(canvasId, type, labels, data, color, labelText){
   destroyChart(canvasId);
   const el = document.getElementById(canvasId);
   if(!el || typeof Chart==='undefined') return;
+  /* Dégradé vertical élégant pour les courbes et histogrammes */
+  const ctx = el.getContext('2d');
+  let fillStyle = type==='bar' ? color+'D9' : color+'26';
+  try{
+    const grad = ctx.createLinearGradient(0, 0, 0, el.parentElement.clientHeight || 260);
+    if(type==='line'){ grad.addColorStop(0, color+'55'); grad.addColorStop(1, color+'05'); }
+    else { grad.addColorStop(0, color); grad.addColorStop(1, shadeColor(color, -0.3)); }
+    fillStyle = grad;
+  }catch(_){}
   chartInstances[canvasId] = new Chart(el, {
     type: type,
-    data: { labels, datasets: [{ label: labelText, data, backgroundColor: type==='bar'? color+'CC' : color+'33', borderColor: color, borderWidth: 2, tension:.3, fill: type==='line', borderRadius: type==='bar'?4:0 }] },
+    data: { labels, datasets: [{
+      label: labelText, data,
+      backgroundColor: fillStyle,
+      borderColor: color, borderWidth: type==='line'?2.5:0,
+      tension:.4, fill: type==='line',
+      pointRadius: type==='line'?2.5:0, pointHoverRadius:5,
+      pointBackgroundColor:'#fff', pointBorderColor: color, pointBorderWidth:2,
+      borderRadius: type==='bar'?6:0, maxBarThickness:42, borderSkipped:false
+    }] },
     options: {
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false} },
-      scales:{ y:{ beginAtZero:true, grid:{color:'#EEE9E2'} }, x:{ grid:{display:false} } }
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#1B1B1F', titleFont:{family:'Inter',size:12,weight:'700'},
+          bodyFont:{family:'Inter',size:12}, padding:10, cornerRadius:6, displayColors:false,
+          callbacks:{ label: c=> (labelText? labelText+' : ':'') + Number(c.parsed.y).toLocaleString('fr-FR') }
+        }
+      },
+      scales:{
+        y:{ beginAtZero:true, grid:{color:'#EFEBE4'}, border:{display:false},
+            ticks:{ font:{family:'Inter',size:11}, color:'#6B6B72',
+                    callback:v=> Number(v)>=1000000 ? (v/1000000).toLocaleString('fr-FR')+' M' : Number(v)>=1000 ? (v/1000).toLocaleString('fr-FR')+' k' : v } },
+        x:{ grid:{display:false}, border:{display:false},
+            ticks:{ font:{family:'Inter',size:11}, color:'#6B6B72', maxRotation:0, autoSkip:true, autoSkipPadding:12 } }
+      }
+    }
+  });
+}
+/* Diagramme circulaire (répartition) professionnel */
+function drawDoughnut(canvasId, labels, data, colors, labelText){
+  destroyChart(canvasId);
+  const el = document.getElementById(canvasId);
+  if(!el || typeof Chart==='undefined') return;
+  chartInstances[canvasId] = new Chart(el, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor: colors, borderColor:'#FFFFFF', borderWidth:3, hoverOffset:8 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{
+        legend:{ position:'bottom', labels:{ font:{family:'Inter',size:11.5}, boxWidth:12, boxHeight:12, borderRadius:3, useBorderRadius:true, padding:14, color:'#33383D' } },
+        tooltip:{ backgroundColor:'#1B1B1F', bodyFont:{family:'Inter',size:12}, padding:10, cornerRadius:6,
+          callbacks:{ label: c=> ' '+c.label+' : '+Number(c.parsed).toLocaleString('fr-FR') } }
+      }
     }
   });
 }
 function unitFor(type){
   if(type==='lp') return 'présences';
+  if(type==='sim') return 'SIM';
   if(type==='tdr' || type==='tda') return '%';
   return 'GNF';
 }
 function typeFullLabel(type){
-  return {ca:'Chiffre d\'affaires', tdr:'Taux de rupture', tda:'Taux d\'inactivité', lp:'Liste des présences'}[type];
+  return {ca:'Chiffre d\'affaires', om:'Orange Money', sim:'SIM', tdr:'Taux de rupture', tda:'Taux d\'inactivité', lp:'Liste des présences'}[type];
 }
-function typeLabel(type){ return {ca:'CA', tdr:'TDR', tda:'TDA', lp:'LP'}[type]; }
+function typeLabel(type){ return {ca:'CA', om:'OM', sim:'SIM', tdr:'TDR', tda:'TDA', lp:'LP'}[type]; }
+/* Types utilisés pour les OBJECTIFS : CA, Orange Money, SIM */
+const OBJ_TYPES = ['ca','om','sim'];
 
 /* ---------- THEMES (sidebar + barre du haut) ---------- */
 const THEMES = [
-  { id:'orange', nom:'Orange (défaut)', bg:'linear-gradient(180deg, #FF6600, #D14E00)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.22)', topBg:'transparent', topText:'#1B1B1F', topSub:'#4A4A52' },
-  { id:'nuit',   nom:'Nuit',            bg:'linear-gradient(180deg, #1B1B1F, #2A2A30)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.65)', activeBg:'#FF6600', topBg:'linear-gradient(90deg, #1B1B1F, #2A2A30)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.7)' },
-  { id:'ardoise',nom:'Ardoise',         bg:'linear-gradient(180deg, #33414D, #24303A)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.7)',  activeBg:'#FF6600', topBg:'linear-gradient(90deg, #33414D, #24303A)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.7)' },
-  { id:'vert',   nom:'Vert forêt',      bg:'linear-gradient(180deg, #1F6B45, #16502F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)', topBg:'linear-gradient(90deg, #1F6B45, #16502F)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.75)' },
-  { id:'bordeaux',nom:'Bordeaux',       bg:'linear-gradient(180deg, #7A2E2E, #591F1F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)', topBg:'linear-gradient(90deg, #7A2E2E, #591F1F)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.75)' },
-  { id:'clair',  nom:'Clair',           bg:'linear-gradient(180deg, #FFFFFF, #F1EDE6)', text:'#1B1B1F', textSoft:'#6B6B72',              activeBg:'#FFE1C2', topBg:'#FFFFFF', topText:'#1B1B1F', topSub:'#6B6B72' },
+  { id:'orange', nom:'Orange (défaut)', bg:'linear-gradient(180deg, #FF6600, #D14E00)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.22)', topBg:'transparent', topText:'#1B1B1F', topSub:'#4A4A52', btn:'#FF6600', btnDark:'#D14E00' },
+  { id:'nuit',   nom:'Nuit',            bg:'linear-gradient(180deg, #1B1B1F, #2A2A30)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.65)', activeBg:'#FF6600', topBg:'linear-gradient(90deg, #1B1B1F, #2A2A30)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.7)', btn:'#2A2A30', btnDark:'#1B1B1F' },
+  { id:'ardoise',nom:'Ardoise',         bg:'linear-gradient(180deg, #33414D, #24303A)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.7)',  activeBg:'#FF6600', topBg:'linear-gradient(90deg, #33414D, #24303A)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.7)', btn:'#33414D', btnDark:'#24303A' },
+  { id:'vert',   nom:'Vert forêt',      bg:'linear-gradient(180deg, #1F6B45, #16502F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)', topBg:'linear-gradient(90deg, #1F6B45, #16502F)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.75)', btn:'#1F8A4C', btnDark:'#146034' },
+  { id:'bordeaux',nom:'Bordeaux',       bg:'linear-gradient(180deg, #7A2E2E, #591F1F)', text:'#FFFFFF', textSoft:'rgba(255,255,255,.75)', activeBg:'rgba(0,0,0,.25)', topBg:'linear-gradient(90deg, #7A2E2E, #591F1F)', topText:'#FFFFFF', topSub:'rgba(255,255,255,.75)', btn:'#7A2E2E', btnDark:'#591F1F' },
+  { id:'clair',  nom:'Clair',           bg:'linear-gradient(180deg, #FFFFFF, #F1EDE6)', text:'#1B1B1F', textSoft:'#6B6B72',              activeBg:'#FFE1C2', topBg:'#FFFFFF', topText:'#1B1B1F', topSub:'#6B6B72', btn:'#1B1B1F', btnDark:'#000000' },
 ];
 function allThemes(){
   const customs = (DB && DB.settings && Array.isArray(DB.settings.customThemes)) ? DB.settings.customThemes : [];
@@ -569,6 +658,17 @@ function applyTheme(themeId){
   root.setProperty('--topbar-text', t.topText || '#1B1B1F');
   root.setProperty('--topbar-sub', t.topSub || (t.topText ? t.topText : '#4A4A52'));
   root.setProperty('--topbar-pad', topBg==='transparent' ? '0' : '12px 16px');
+  /* Boutons (tous les boutons oranges suivent le thème) */
+  root.setProperty('--btn-bg', t.btn || '#FF6600');
+  root.setProperty('--btn-bg-dark', t.btnDark || shadeColor(t.btn || '#FF6600', -0.25));
+  root.setProperty('--btn-text', '#FFFFFF');
+}
+/* Assombrit/éclaircit une couleur hex (f entre -1 et 1) */
+function shadeColor(hex, f){
+  const h = (hex||'#FF6600').replace('#','');
+  const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  const s = v => Math.max(0, Math.min(255, Math.round(f<0 ? v*(1+f) : v+(255-v)*f)));
+  return '#'+[s(r),s(g),s(b)].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
 /* Convertit une couleur hex en version adoucie (pour les textes secondaires). */
 function softColor(hex){
@@ -580,7 +680,13 @@ function monthKey(dateStr){ return (dateStr||todayStr()).slice(0,7); }
 function objKey(type, gerantId, ym){ return `${type}_${gerantId}_${ym}`; }
 function getObjectif(type, gerantId, ym){ return Number(DB.objectifs[objKey(type,gerantId,ym)] || 0); }
 function computeMonthTotal(type, gerantId, ym){
-  return DB[type].filter(e=> e.gerantId===gerantId && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
+  if(type==='sim'){
+    /* SIM attribuées dans le mois sur les PDV de ce gérant */
+    const myPdvIds = DB.pdvs.filter(p=>p.gerantId===gerantId).map(p=>p.id);
+    return DB.sims.filter(s=> myPdvIds.includes(s.pdvId))
+      .reduce((a,s)=> a + (s.history||[]).filter(h=>h.event==='Attribution' && monthKey(String(h.ts).slice(0,10))===ym).length, 0);
+  }
+  return (DB[type]||[]).filter(e=> e.gerantId===gerantId && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
 }
 function last14DaysSeries(type, gerantId, days){
   days = days || 14;
@@ -647,7 +753,8 @@ function objKeySup(type, supId, ym){ return `${type}_${supId}_${ym}`; }
 function getObjectifSup(type, supId, ym){ return Number(DB.objectifsSup[objKeySup(type,supId,ym)] || 0); }
 function computeMonthTotalSup(type, supId, ym){
   const myGerantIds = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===supId).map(g=>g.id);
-  return DB[type].filter(e=> myGerantIds.includes(e.gerantId) && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
+  if(type==='sim'){ return myGerantIds.reduce((a,gid)=> a + computeMonthTotal('sim', gid, ym), 0); }
+  return (DB[type]||[]).filter(e=> myGerantIds.includes(e.gerantId) && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
 }
 
 /* ---------- PAGE GLOBALE : OBJECTIFS (visible RZ / superviseur / gérant) ---------- */
@@ -656,7 +763,7 @@ function renderObjectifsGlobal(){
   const role = SESSION.role;
   const ym = todayStr().slice(0,7);
   const moisLabel = new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  const types = ['ca','tdr','tda','lp'];
+  const types = OBJ_TYPES;
 
   if(role==='responsable_zone'){
     const superviseurs = DB.users.filter(u=>u.role==='superviseur');
@@ -729,7 +836,7 @@ function objSupView(superviseurs, ym, moisLabel){
       <table><thead><tr><th>Superviseur</th><th>CA</th><th>TDR</th><th>TDA</th><th>LP</th><th></th></tr></thead><tbody>
       ${superviseurs.map(s=>`<tr>
         <td>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</td>
-        ${['ca','tdr','tda','lp'].map(t=>{ const tar=getObjectifSup(t,s.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
+        ${OBJ_TYPES.map(t=>{ const tar=getObjectifSup(t,s.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
         <td><button class="btn btn-ghost btn-sm" onclick="openSupObjModal('${s.id}')">Définir</button></td>
       </tr>`).join('')}
       </tbody></table>`}
@@ -745,7 +852,7 @@ function objGerView(){
       ${gerants.map(g=>{ const sup = DB.users.find(u=>u.id===g.superviseurId); return `<tr>
         <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
         <td class="muted">${sup? sup.prenom+' '+sup.nom : '—'}</td>
-        ${['ca','tdr','tda','lp'].map(t=>{ const tar=getObjectif(t,g.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
+        ${OBJ_TYPES.map(t=>{ const tar=getObjectif(t,g.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
         <td><button class="btn btn-ghost btn-sm" onclick="openGerantObjModal('${g.id}')">Définir</button></td>
       </tr>`; }).join('')}
       </tbody></table>`}
@@ -762,7 +869,7 @@ function switchObjTab(tab){
 function openSupObjModal(supId){
   const s = DB.users.find(u=>u.id===supId);
   const ym = todayStr().slice(0,7);
-  const types = ['ca','tdr','tda','lp'];
+  const types = OBJ_TYPES;
   document.getElementById('modalTitle').textContent = `Objectifs — ${s.prenom} ${s.nom}`;
   document.getElementById('modalBody').innerHTML = types.map(t=>`
     <div class="field"><label>${typeFullLabel(t)} (${unitFor(t)})</label>
@@ -774,7 +881,7 @@ function openSupObjModal(supId){
 }
 async function saveSupObjectifs(supId){
   const ym = todayStr().slice(0,7);
-  ['ca','tdr','tda','lp'].forEach(t=>{
+  OBJ_TYPES.forEach(t=>{
     const val = document.getElementById('oSup_'+t).value;
     DB.objectifsSup[objKeySup(t,supId,ym)] = val ? Number(val) : 0;
   });
@@ -785,7 +892,7 @@ async function saveSupObjectifs(supId){
 function openGerantObjModal(gerantId){
   const g = DB.users.find(u=>u.id===gerantId);
   const ym = todayStr().slice(0,7);
-  const types = ['ca','tdr','tda','lp'];
+  const types = OBJ_TYPES;
   document.getElementById('modalTitle').textContent = `Objectifs — ${g.prenom} ${g.nom}`;
   document.getElementById('modalBody').innerHTML = types.map(t=>`
     <div class="field"><label>${typeFullLabel(t)} (${unitFor(t)})</label>
@@ -797,7 +904,7 @@ function openGerantObjModal(gerantId){
 }
 async function saveGerantObjectifs(gerantId){
   const ym = todayStr().slice(0,7);
-  ['ca','tdr','tda','lp'].forEach(t=>{
+  OBJ_TYPES.forEach(t=>{
     const val = document.getElementById('oGer_'+t).value;
     DB.objectifs[objKey(t,gerantId,ym)] = val ? Number(val) : 0;
   });
@@ -974,6 +1081,208 @@ async function saveDB(){
   }catch(e){ console.error('Erreur de sauvegarde', e); toast('Erreur de sauvegarde des données'); }
 }
 
+/* =========================================================================
+   POINTAGE DU PERSONNEL (entrée / sortie par empreinte ou par code)
+   ========================================================================= */
+let ptClockTimer = null;
+function openPointageScreen(){
+  document.getElementById('login-screen').style.display='none';
+  const sc = document.getElementById('pointage-screen');
+  sc.style.display='flex';
+  const logo = document.getElementById('ptLogoImg');
+  if(logo && !logo.src) logo.src = EH_LOGO;
+  const tick = ()=>{ const d=new Date(); document.getElementById('ptClock').textContent =
+    d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long'})+' — '+d.toLocaleTimeString('fr-FR'); };
+  tick(); ptClockTimer = setInterval(tick, 1000);
+  /* Le bouton empreinte n'apparaît que si des empreintes sont configurées sur CET appareil */
+  const creds = getDeviceCreds();
+  const hasBio = creds.length>0 && window.PublicKeyCredential;
+  document.getElementById('ptFingerBtn').style.display = hasBio ? 'block' : 'none';
+  document.getElementById('ptSep').style.display = hasBio ? 'block' : 'none';
+}
+function closePointageScreen(){
+  clearInterval(ptClockTimer);
+  document.getElementById('pointage-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  ptMsg('',''); 
+}
+function ptMsg(kind, txt){
+  const err = document.getElementById('ptErr');
+  const ok = document.getElementById('ptOk');
+  err.style.display = kind==='err' ? 'block':'none'; err.textContent = kind==='err'? txt:'';
+  ok.style.display = kind==='ok' ? 'block':'none'; ok.innerHTML = kind==='ok'? txt:'';
+}
+/* Enregistre l'entrée (1er pointage du jour) ou la sortie (2e pointage) */
+async function registerPointage(user, methode){
+  const today = todayStr();
+  const heure = new Date().toLocaleTimeString('fr-FR');
+  let p = DB.pointages.find(x=>x.userId===user.id && x.date===today);
+  if(!p){
+    p = { id: uid('PT'), userId: user.id, date: today, entree: heure, sortie: null, methodeIn: methode, methodeOut: null };
+    DB.pointages.push(p);
+    ptMsg('ok', `✅ <b>Entrée enregistrée</b><br>${escapeHtml(user.prenom+' '+user.nom)} (${user.code})<br>${today} à <b>${heure}</b>`);
+  } else if(!p.sortie){
+    p.sortie = heure; p.methodeOut = methode;
+    ptMsg('ok', `✅ <b>Sortie enregistrée</b><br>${escapeHtml(user.prenom+' '+user.nom)} (${user.code})<br>Entrée : ${p.entree} — Sortie : <b>${heure}</b>`);
+  } else {
+    ptMsg('err', `${user.prenom} ${user.nom} a déjà pointé l'entrée (${p.entree}) et la sortie (${p.sortie}) aujourd'hui.`);
+    return;
+  }
+  const prev = SESSION; SESSION = user;
+  logAction('Pointage', (p.sortie? 'Sortie':'Entrée')+' par '+methode);
+  SESSION = prev;
+  await saveDB();
+  document.getElementById('ptCode').value=''; document.getElementById('ptPass').value='';
+}
+async function pointerParCode(){
+  const code = document.getElementById('ptCode').value;
+  const pass = document.getElementById('ptPass').value;
+  const u = findUser(code, pass);
+  if(!u){ ptMsg('err','Code ou mot de passe invalide.'); return; }
+  await registerPointage(u, 'code');
+}
+/* ---------- Empreinte digitale (WebAuthn, liée à CET appareil) ----------
+   Le responsable configure l'empreinte de chaque employé sur le téléphone
+   de celui-ci. L'association empreinte ↔ employé est stockée sur l'appareil. */
+function getDeviceCreds(){
+  try{ return JSON.parse(localStorage.getItem('mo_empreintes')||'[]'); }catch(_){ return []; }
+}
+function setDeviceCreds(list){
+  try{ localStorage.setItem('mo_empreintes', JSON.stringify(list)); }catch(_){}
+}
+function b64url(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64urlToBuf(s){
+  s = s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+  const bin = atob(s); const buf = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  return buf.buffer;
+}
+async function openConfigEmpreinte(){
+  if(!window.PublicKeyCredential){ ptMsg('err',"Ce navigateur ne prend pas en charge l'empreinte digitale."); return; }
+  /* Autorisation du responsable de zone requise */
+  const codeRZ = prompt('Configuration réservée au responsable de zone.\nCode d\'accès du responsable :');
+  if(codeRZ===null) return;
+  const passRZ = prompt('Mot de passe du responsable :');
+  if(passRZ===null) return;
+  const rz = findUser(codeRZ, passRZ);
+  if(!rz || rz.role!=='responsable_zone'){ ptMsg('err','Identifiants du responsable invalides.'); return; }
+  const staff = DB.users.filter(u=>u.active && u.role!=='responsable_zone');
+  if(staff.length===0){ ptMsg('err','Aucun employé actif à configurer.'); return; }
+  const choix = prompt('Code de l\'employé dont l\'empreinte sera enregistrée sur CET appareil :\n'+
+    staff.map(u=>`${u.code} — ${u.prenom} ${u.nom} (${roleLabel(u.role)})`).join('\n'));
+  if(choix===null) return;
+  const emp = staff.find(u=>u.code.toLowerCase()===choix.trim().toLowerCase());
+  if(!emp){ ptMsg('err','Code employé introuvable.'); return; }
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const cred = await navigator.credentials.create({ publicKey:{
+      challenge,
+      rp: { name: 'Pointage '+(DB.settings.nomZone||'Maison Orange') },
+      user: { id: new TextEncoder().encode(emp.id), name: emp.code, displayName: emp.prenom+' '+emp.nom },
+      pubKeyCredParams: [{type:'public-key', alg:-7},{type:'public-key', alg:-257}],
+      authenticatorSelection: { authenticatorAttachment:'platform', userVerification:'required' },
+      timeout: 60000
+    }});
+    const creds = getDeviceCreds().filter(c=>c.userId!==emp.id);
+    creds.push({ credId: b64url(cred.rawId), userId: emp.id });
+    setDeviceCreds(creds);
+    ptMsg('ok', `✅ Empreinte de <b>${escapeHtml(emp.prenom+' '+emp.nom)}</b> enregistrée sur cet appareil.<br>Il peut désormais pointer d'un simple doigt.`);
+    document.getElementById('ptFingerBtn').style.display='block';
+    document.getElementById('ptSep').style.display='block';
+    const prev = SESSION; SESSION = rz;
+    logAction('Empreinte configurée', emp.code+' sur appareil de pointage');
+    SESSION = prev; await saveDB();
+  }catch(e){
+    console.warn(e);
+    ptMsg('err',"Enregistrement de l'empreinte annulé ou refusé par l'appareil.");
+  }
+}
+async function pointerParEmpreinte(){
+  const creds = getDeviceCreds();
+  if(creds.length===0){ ptMsg('err','Aucune empreinte configurée sur cet appareil.'); return; }
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({ publicKey:{
+      challenge,
+      allowCredentials: creds.map(c=>({ type:'public-key', id: b64urlToBuf(c.credId) })),
+      userVerification:'required', timeout: 60000
+    }});
+    const match = creds.find(c=>c.credId===b64url(assertion.rawId));
+    const user = match ? DB.users.find(u=>u.id===match.userId && u.active) : null;
+    if(!user){ ptMsg('err','Empreinte reconnue mais employé introuvable ou suspendu.'); return; }
+    await registerPointage(user, 'empreinte');
+  }catch(e){
+    console.warn(e);
+    ptMsg('err','Empreinte non reconnue ou lecture annulée.');
+  }
+}
+/* ---------- Vue de gestion du pointage (responsable de zone) ---------- */
+function renderPointage(){
+  const main = document.getElementById('mainContent');
+  const date = window._ptViewDate || todayStr();
+  const rows = DB.pointages.filter(p=>p.date===date);
+  const enPoste = rows.filter(p=>p.entree && !p.sortie).length;
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>🕐 Pointage du personnel</h1><p>Présences enregistrées par empreinte ou par code depuis l'écran de pointage.</p></div>
+      <div class="panel-actions">
+        <input type="date" id="pt_date" value="${date}" onchange="window._ptViewDate=this.value;render();">
+        <button class="btn btn-primary btn-sm" onclick="printPointageJour()">🖨 Imprimer la liste du jour</button>
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportPointageExcel()">⬇ Excel</button>
+      </div>
+    </div>
+    ${cardsRow([
+      ['Présents ce jour', rows.length, date],
+      ['Encore en poste', enPoste, 'sortie non pointée'],
+      ['Sorties pointées', rows.filter(p=>p.sortie).length, ''],
+    ])}
+    <div class="panel"><div class="panel-head"><h2>Liste des présences — ${date}</h2></div>
+      <div class="panel-body">
+        ${rows.length===0 ? emptyState('Aucun pointage', 'Personne n\'a encore pointé à cette date.') : `
+        <table><thead><tr><th>Employé</th><th>Code</th><th>Rôle</th><th>Entrée</th><th>Sortie</th><th>Méthode</th></tr></thead><tbody>
+        ${rows.map(p=>{
+          const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:'',code:'—',role:''};
+          return `<tr>
+            <td>${escapeHtml(u.prenom+' '+u.nom)}</td>
+            <td class="mono">${u.code}</td>
+            <td><span class="badge badge-orange">${roleLabel(u.role)||'—'}</span></td>
+            <td class="mono">${p.entree||'—'}</td>
+            <td class="mono">${p.sortie||'<span class="badge badge-warn">En poste</span>'}</td>
+            <td class="muted">${p.methodeIn==='empreinte'?'☝ Empreinte':'Code'}${p.methodeOut? ' / '+(p.methodeOut==='empreinte'?'☝':'code'):''}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
+}
+function pointageRowsFor(date){
+  const rows = [['Employé','Code','Rôle','Entrée','Sortie','Méthode']];
+  DB.pointages.filter(p=>p.date===date).forEach(p=>{
+    const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:'',code:'—',role:''};
+    rows.push([u.prenom+' '+u.nom, u.code, roleLabel(u.role)||'—', p.entree||'—', p.sortie||'—', (p.methodeIn||'')+(p.methodeOut?' / '+p.methodeOut:'')]);
+  });
+  return rows;
+}
+function printPointageJour(){
+  const date = window._ptViewDate || todayStr();
+  const rows = pointageRowsFor(date);
+  exportToPDF('Pointage du personnel', 'Liste des présences du '+date, rows[0], rows.slice(1));
+}
+function exportPointageExcel(){
+  const date = window._ptViewDate || todayStr();
+  exportToExcel(pointageRowsFor(date), 'pointage-'+date, 'Pointage');
+}
+
+/* ---------- Panneaux repliables : clic sur le titre d'un panneau ---------- */
+document.addEventListener('click', function(e){
+  const h = e.target.closest('.panel-head h2');
+  if(!h) return;
+  const panel = h.closest('.panel');
+  if(panel) panel.classList.toggle('folded');
+});
+
 /* ---------- ANTI DOUBLE-CLIC ----------
    Un seul clic suffit : dès qu'un bouton d'action est cliqué, il est
    verrouillé un court instant. Les clics répétés (double-clic, appui long)
@@ -1100,15 +1409,16 @@ function navItems(role){
       ]},
       {sec:'Personnel & accès', items:[
         {id:'personnel', label:'Superviseurs & agents'},
-        {id:'access', label:'Codes d\'accès'},
-        {id:'permissions', label:'Autorisations'},
+        {id:'pointage', label:'Pointage du personnel'},
       ]},
       {sec:'Réseau', items:[
         {id:'pdv', label:'Points de vente'},
-        {id:'sims', label:'SIM & traçabilité'},
+        {id:'sims', label:'SIM'},
+        {id:'trace', label:'Traçabilité'},
       ]},
       {sec:'Activité gérants', items:[
         {id:'ca', label:'CA'},
+        {id:'om', label:'OM'},
         {id:'tdr', label:'TDR'},
         {id:'tda', label:'TDA'},
         {id:'lp', label:'LP'},
@@ -1116,7 +1426,7 @@ function navItems(role){
       {sec:'Supervision', items:[
         {id:'daily', label:'Activité journalière'},
         {id:'audit', label:'Journal d\'audit'},
-        {id:'reports', label:'Rapports annuel/trimestriel'},
+        {id:'reports', label:'Rapports mensuel/annuel'},
       ]},
       {sec:'Pilotage', items:[
         {id:'objectifs', label:'🎯 Objectifs'},
@@ -1142,6 +1452,7 @@ function navItems(role){
       ]},
       {sec:'Activité du jour', items:[
         {id:'ca', label:'CA du jour'},
+        {id:'om', label:'OM du jour'},
         {id:'tdr', label:'TDR du jour'},
         {id:'tda', label:'TDA du jour'},
         {id:'lp', label:'LP du jour'},
@@ -1154,7 +1465,9 @@ function navItems(role){
       {sec:'Mon activité', items:[
         {id:'dashboard', label:'Tableau de bord'},
         {id:'objectifs', label:'🎯 Mes objectifs'},
+        {id:'mesagents', label:'Mes agents'},
         {id:'ca', label:'Déclarer CA'},
+        {id:'om', label:'Déclarer OM'},
         {id:'tdr', label:'Déclarer TDR'},
         {id:'tda', label:'Déclarer TDA'},
         {id:'lp', label:'Déclarer LP'},
@@ -1184,7 +1497,7 @@ function buildNav(){
       const b = document.createElement('button');
       b.innerHTML = `<span class="dot"></span> ${it.label}`;
       b.dataset.view = it.id;
-      if(['ca','tdr','tda','lp'].includes(it.id)) b.title = typeFullLabel(it.id);
+      if(['ca','om','tdr','tda','lp'].includes(it.id)) b.title = typeFullLabel(it.id);
       b.onclick = ()=> navigate(it.id);
       nav.appendChild(b);
     });
@@ -1214,7 +1527,11 @@ function render(){
     ca: renderCA,
     tdr: ()=>renderMoveTable('tdr','TDR — Taux de rupture','Suivi du taux de rupture de stock constaté chez les gérants.'),
     tda: ()=>renderMoveTable('tda','TDA — Taux d\'inactivité','Suivi du taux d\'inactivité des lignes chez les gérants.'),
-    lp: ()=>renderMoveTable('lp','LP — Liste des présences','Suivi de la liste des présences des gérants.'),
+    om: ()=>renderMoveTable('om','OM — Orange Money','Suivi des déclarations Orange Money des gérants.'),
+    lp: renderLP,
+    pointage: renderPointage,
+    trace: renderTrace,
+    mesagents: renderMesAgents,
     daily: renderDaily,
     audit: renderAudit,
     reports: renderReports,
@@ -1261,18 +1578,35 @@ function renderDashboard(){
       .sort((a,b)=>b.total-a.total).slice(0,5);
     const trend = last14DaysSeries('ca', null, 30);
 
+    const ymNow = todayStr().slice(0,7);
+    const caMoisParGerant = gerants.map(g=>({nom:(g.prenom+' '+g.nom.charAt(0)+'.'), total: computeMonthTotal('ca', g.id, ymNow)}))
+      .sort((a,b)=>b.total-a.total).slice(0,8);
+    const omTrend = last14DaysSeries('om', null, 30);
+    const simStats = [
+      DB.sims.filter(s=>s.statut==='attribuee').length,
+      DB.sims.filter(s=>s.statut==='stock').length,
+      DB.sims.filter(s=>s.statut!=='attribuee' && s.statut!=='stock').length
+    ];
     extraHtml = `
       <div class="grid-2">
-        <div class="panel"><div class="panel-head"><h2>Tendance du CA — 30 derniers jours</h2></div>
+        <div class="panel"><div class="panel-head"><h2>📈 Tendance du CA — 30 derniers jours</h2></div>
           <div class="panel-body"><div class="chart-wrap"><canvas id="dash_trend"></canvas></div></div></div>
-        <div class="panel"><div class="panel-head"><h2>Top 5 gérants (CA cumulé)</h2></div>
-          <div class="panel-body">
-            ${ranked.length===0 ? emptyState('Aucune donnée','—') : ranked.map((r,i)=>`
-              <div class="obj-row"><span>${i+1}. ${escapeHtml(r.g.prenom)} ${escapeHtml(r.g.nom)}</span><b>${r.total.toLocaleString('fr-FR')} GNF</b></div>
-              <div class="progress-track"><div class="progress-fill" style="width:${ranked[0].total? Math.round(r.total/ranked[0].total*100):0}%;"></div></div>
-            `).join('')}
-          </div></div>
+        <div class="panel"><div class="panel-head"><h2>📈 Tendance OM — 30 derniers jours</h2></div>
+          <div class="panel-body"><div class="chart-wrap"><canvas id="dash_om"></canvas></div></div></div>
       </div>
+      <div class="grid-2">
+        <div class="panel"><div class="panel-head"><h2>📊 CA du mois par gérant</h2></div>
+          <div class="panel-body"><div class="chart-wrap">${caMoisParGerant.every(x=>x.total===0)? emptyState('Aucune donnée','Aucun CA déclaré ce mois-ci.') : '<canvas id="dash_gerants"></canvas>'}</div></div></div>
+        <div class="panel"><div class="panel-head"><h2>🍩 Répartition des SIM</h2></div>
+          <div class="panel-body"><div class="chart-wrap">${DB.sims.length===0? emptyState('Aucune SIM','—') : '<canvas id="dash_sims"></canvas>'}</div></div></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2>🏆 Top 5 gérants (CA cumulé)</h2></div>
+        <div class="panel-body">
+          ${ranked.length===0 ? emptyState('Aucune donnée','—') : ranked.map((r,i)=>`
+            <div class="obj-row"><span>${i+1}. ${escapeHtml(r.g.prenom)} ${escapeHtml(r.g.nom)}</span><b>${r.total.toLocaleString('fr-FR')} GNF</b></div>
+            <div class="progress-track"><div class="progress-fill" style="width:${ranked[0].total? Math.round(r.total/ranked[0].total*100):0}%;"></div></div>
+          `).join('')}
+        </div></div>
       ${alerts.length ? `<div class="panel"><div class="panel-head"><h2>⚠ Alertes réseau</h2>
           <button class="btn btn-ghost btn-sm" onclick="navigate('sims')">Voir les SIM</button></div>
           <div class="panel-body">
@@ -1281,7 +1615,14 @@ function renderDashboard(){
             </tbody></table>
           </div></div>` : ''}
     `;
-    afterRender = ()=> drawChart('dash_trend','line', trend.labels, trend.data, '#FF6600', 'CA (GNF)');
+    afterRender = ()=>{
+      drawChart('dash_trend','line', trend.labels, trend.data, '#FF6600', 'CA (GNF)');
+      drawChart('dash_om','line', omTrend.labels, omTrend.data, '#1F8A4C', 'OM (GNF)');
+      if(!caMoisParGerant.every(x=>x.total===0))
+        drawChart('dash_gerants','bar', caMoisParGerant.map(x=>x.nom), caMoisParGerant.map(x=>x.total), '#D14E00', 'CA du mois');
+      if(DB.sims.length)
+        drawDoughnut('dash_sims', ['Attribuées','En stock','Autres'], simStats, ['#1F8A4C','#E8A200','#D92B2B'], 'SIM');
+    };
   } else if(role==='superviseur'){
     const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
     const todayCA = DB.ca.filter(c=>isToday(c.date) && c.superviseurId===SESSION.id);
@@ -1295,12 +1636,17 @@ function renderDashboard(){
     lockBanner = `<div class="lock-banner"><span class="banner-text">🔒 Accès limité au jour courant : les données d'hier et avant ne sont visibles que par le responsable de zone (rapports/justificatifs).</span>${dayArcSVG(38)}</div>`;
   } else if(role==='gerant'){
     const mine = DB.ca.filter(c=>c.gerantId===SESSION.id && isToday(c.date));
+    const mineOM = DB.om.filter(c=>c.gerantId===SESSION.id && isToday(c.date));
     statsHtml = cardsRow([
       ["CA déclaré aujourd'hui", mine.reduce((a,c)=>a+Number(c.montant||0),0).toLocaleString('fr-FR')+' GNF', mine.length+' entrées'],
+      ["OM déclaré aujourd'hui", mineOM.reduce((a,c)=>a+Number(c.montant||0),0).toLocaleString('fr-FR')+' GNF', mineOM.length+' entrées'],
       ['TDR aujourd\'hui', DB.tdr.filter(t=>t.gerantId===SESSION.id && isToday(t.date)).length, ''],
-      ['TDA aujourd\'hui', DB.tda.filter(t=>t.gerantId===SESSION.id && isToday(t.date)).length, ''],
       ['LP aujourd\'hui', DB.lp.filter(t=>t.gerantId===SESSION.id && isToday(t.date)).length, ''],
     ]);
+    const gTrend = last14DaysSeries('ca', SESSION.id, 14);
+    extraHtml = `<div class="panel"><div class="panel-head"><h2>📈 Mon CA — 14 derniers jours</h2></div>
+      <div class="panel-body"><div class="chart-wrap"><canvas id="dash_g_trend"></canvas></div></div></div>`;
+    afterRender = ()=> drawChart('dash_g_trend','line', gTrend.labels, gTrend.data, '#FF6600', 'CA (GNF)');
   } else if(role==='agent'){
     const mySims = DB.sims.filter(s=>s.agentId===SESSION.id);
     statsHtml = cardsRow([
@@ -1368,6 +1714,8 @@ function renderSettings(){
       <button class="tab-btn" data-stab="contacts" onclick="switchSettingsTab('contacts')">Adresse & contacts</button>
       <button class="tab-btn" data-stab="creation" onclick="switchSettingsTab('creation')">Créer du personnel</button>
       <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des gérants</button>
+      <button class="tab-btn" data-stab="acces" onclick="switchSettingsTab('acces')">Codes d'accès</button>
+      <button class="tab-btn" data-stab="autorisations" onclick="switchSettingsTab('autorisations')">Autorisations</button>
     </div>
     <div id="settingsTabWrap">${settingsIdentiteView()}</div>
   `;
@@ -1375,14 +1723,14 @@ function renderSettings(){
 function switchSettingsTab(tab){
   document.querySelectorAll('[data-stab]').forEach(b=>b.classList.toggle('active', b.dataset.stab===tab));
   const wrap = document.getElementById('settingsTabWrap');
-  const views = { identite: settingsIdentiteView, contacts: settingsContactsView, creation: settingsCreationView, codes: settingsCodesView };
+  const views = { identite: settingsIdentiteView, contacts: settingsContactsView, creation: settingsCreationView, codes: settingsCodesView, acces: settingsAccesView, autorisations: settingsAutorisationsView };
   wrap.innerHTML = views[tab]();
 }
 
 function settingsIdentiteView(){
   return `
     <div class="panel">
-      <div class="panel-head"><h2>Identité de la Maison Orange</h2></div>
+      <div class="panel-head"><h2>Identité de Eight Huit</h2></div>
       <div class="panel-body">
         <div class="field"><label>Nom affiché de l'organisation</label>
           <input type="text" id="set_nomzone" value="${escapeHtml(DB.settings.nomZone||'Maison Orange')}"></div>
@@ -1423,6 +1771,7 @@ function settingsIdentiteView(){
           <div class="field"><label>Texte barre latérale</label><input type="color" id="ct_sidetext" value="#FFFFFF"></div>
           <div class="field"><label>Barre du haut — fond</label><input type="color" id="ct_top" value="#0D47A1"></div>
           <div class="field"><label>Barre du haut — texte</label><input type="color" id="ct_toptext" value="#FFFFFF"></div>
+          <div class="field"><label>Couleur des boutons</label><input type="color" id="ct_btn" value="#0D47A1"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addCustomTheme()">Ajouter et appliquer le thème</button>
       </div>
@@ -1446,7 +1795,9 @@ async function addCustomTheme(){
     activeBg: 'rgba(0,0,0,.25)',
     topBg: `linear-gradient(90deg, ${tb}, ${tb})`,
     topText: tt,
-    topSub: softColor(tt)
+    topSub: softColor(tt),
+    btn: document.getElementById('ct_btn').value,
+    btnDark: shadeColor(document.getElementById('ct_btn').value, -0.25)
   };
   if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes = [];
   DB.settings.customThemes.push(theme);
@@ -1533,6 +1884,38 @@ function settingsCreationView(){
   `;
 }
 
+function settingsAccesView(){
+  return `
+    <div class="panel">
+      <div class="panel-head"><h2>Codes d'accès de toute la zone</h2>
+        <div class="tag-row">
+          <input class="search-input" placeholder="Rechercher un code, un nom…" oninput="filterAccessTable(this.value)">
+          <button class="btn btn-ghost btn-sm export-btn" onclick="exportAccessExcel()">⬇ Excel</button>
+        </div>
+      </div>
+      <div class="panel-body" id="accessTableWrap">${accessTable(DB.users)}</div>
+    </div>`;
+}
+function settingsAutorisationsView(){
+  const list = DB.users.filter(u=>u.role!=='responsable_zone');
+  return `
+    <div class="panel">
+      <div class="panel-head"><h2>Autorisations de personnel</h2></div>
+      <div class="panel-body">
+        ${list.length===0 ? emptyState('Aucun compte','—') : `
+        <table><thead><tr><th>Nom</th><th>Rôle</th><th>Code</th><th>Modification</th><th>Suppression</th><th></th></tr></thead><tbody>
+        ${list.map(u=>`<tr>
+          <td>${escapeHtml(u.prenom)} ${escapeHtml(u.nom)}</td>
+          <td><span class="badge badge-orange">${roleLabel(u.role)}</span></td>
+          <td class="mono">${u.code}</td>
+          <td>${u.perms.modifier?'<span class="badge badge-ok">Autorisé</span>':'<span class="badge badge-locked">Refusé</span>'}</td>
+          <td>${u.perms.supprimer?'<span class="badge badge-ok">Autorisé</span>':'<span class="badge badge-locked">Refusé</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="openPermUser('${u.id}')">Modifier</button></td>
+        </tr>`).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
+}
 function settingsCodesView(){
   const gerants = DB.users.filter(u=>u.role==='gerant');
   return `
@@ -1791,6 +2174,7 @@ function userTable(list, role){
         <button class="btn btn-ghost btn-sm" onclick="openEditUser('${u.id}')">Modifier</button>
         <button class="btn btn-ghost btn-sm" onclick="openPermUser('${u.id}')">Accès</button>
         <button class="btn ${u.active?'btn-danger':'btn-primary'} btn-sm" onclick="toggleUserActive('${u.id}')">${u.active?'Suspendre':'Réactiver'}</button>
+        ${SESSION.role==='responsable_zone' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">🗑 Supprimer</button>` : ''}
       </td>
     </tr>`;
   }).join('')}
@@ -1820,7 +2204,9 @@ function openCreateUser(role, presetSupervisor){
     ${role==='gerant' && SESSION.role==='responsable_zone' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="nu_superviseur_g"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     ${role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
-      <select id="nu_superviseur"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
+      <select id="nu_superviseur"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>
+    <div class="field"><label>Gérant affilié</label>
+      <select id="nu_gerant"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='gerant'&&u.active).map(g=>`<option value="${g.id}">${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
       <div class="field"><label>Code d'accès (auto)</label><input type="text" id="nu_code" value="${code}" class="mono"></div>
       <div class="field"><label>Mot de passe (auto)</label><input type="text" id="nu_pass" value="${pass}" class="mono"></div>
@@ -1869,6 +2255,7 @@ async function saveNewUser(role){
   const superviseurId = role==='agent' ? document.getElementById('nu_superviseur')?.value
     : role==='gerant' ? (SESSION.role==='superviseur' ? SESSION.id : document.getElementById('nu_superviseur_g')?.value)
     : null;
+  const gerantId = role==='agent' ? (document.getElementById('nu_gerant')?.value || null) : null;
   const photoEl = document.getElementById('nu_photo_preview');
   const photo = photoEl && photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : null;
 
@@ -1880,6 +2267,7 @@ async function saveNewUser(role){
     role, code, pass, nom, prenom, tel, photo,
     pdvId: pdvId || null,
     superviseurId: superviseurId || null,
+    gerantId: gerantId,
     createdAt: nowISO(), createdBy: SESSION.id, active:true,
     perms:{modifier:modif, supprimer:suppr}
   };
@@ -1914,7 +2302,9 @@ function openEditUser(id){
     ${u.role==='gerant' && SESSION.role==='responsable_zone' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="eu_superviseur_g"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     ${u.role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
-      <select id="eu_superviseur"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
+      <select id="eu_superviseur"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>
+    <div class="field"><label>Gérant affilié</label>
+      <select id="eu_gerant"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='gerant'&&x.active).map(g=>`<option value="${g.id}" ${g.id===u.gerantId?'selected':''}>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
       <div class="field"><label>Code d'accès</label><input type="text" id="eu_code" value="${u.code}" class="mono"></div>
       <div class="field"><label>Mot de passe</label><input type="text" id="eu_pass" value="${u.pass}" class="mono"></div>
@@ -1943,6 +2333,8 @@ async function saveEditUser(id){
   if(pdvSel) u.pdvId = pdvSel.value || null;
   const supSel = document.getElementById('eu_superviseur') || document.getElementById('eu_superviseur_g');
   if(supSel) u.superviseurId = supSel.value || null;
+  const gerSel = document.getElementById('eu_gerant');
+  if(gerSel) u.gerantId = gerSel.value || null;
   logAction('Modification de compte', `${u.code} mis à jour`);
   await saveDB();
   closeModal();
@@ -1989,6 +2381,17 @@ async function savePermUser(id){
   render();
 }
 
+async function deleteUser(id){
+  const u = DB.users.find(x=>x.id===id);
+  if(!u) return;
+  if(u.role==='responsable_zone'){ toast('Impossible de supprimer le responsable de zone'); return; }
+  if(!confirm(`Supprimer définitivement le compte de ${u.prenom} ${u.nom} (${u.code}) ?\nSes déclarations et son historique restent conservés.`)) return;
+  DB.users = DB.users.filter(x=>x.id!==id);
+  logAction('Suppression de compte', `${roleLabel(u.role)} ${u.prenom} ${u.nom} (${u.code})`);
+  await saveDB();
+  toast('Compte supprimé');
+  render();
+}
 async function toggleUserActive(id){
   const u = DB.users.find(x=>x.id===id);
   u.active = !u.active;
@@ -2228,6 +2631,185 @@ function renderGerants(){
     ])}
     <div class="panel"><div class="panel-body">${userTable(mine,'gerant')}</div></div>
   `;
+}
+
+/* =========================================================================
+   LP — LISTE DES PRÉSENCES : liste directement imprimable, jour par jour
+   ========================================================================= */
+function renderLP(){
+  if(SESSION.role==='gerant'){
+    renderMoveTable('lp','LP — Liste des présences','Déclarez vos présences du jour.');
+    return;
+  }
+  const main = document.getElementById('mainContent');
+  const date = window._lpViewDate || todayStr();
+  const locked = SESSION.role==='superviseur' && !supervisorCanSeeDay(date);
+  const rows = locked ? [] : DB.lp.filter(e=>e.date===date &&
+    (SESSION.role==='responsable_zone' || e.superviseurId===SESSION.id));
+  const total = rows.reduce((a,e)=>a+Number(e.montant||e.quantite||0),0);
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>LP — Liste des présences</h1><p>Liste directement imprimable, jour par jour.</p></div>
+      <div class="panel-actions">
+        <input type="date" id="lp_date" value="${date}" onchange="window._lpViewDate=this.value;render();">
+        <button class="btn btn-primary btn-sm" onclick="printLPJour()">🖨 Imprimer la liste du jour</button>
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportLPExcel()">⬇ Excel</button>
+      </div>
+    </div>
+    ${cardsRow([
+      ['Déclarations du jour', rows.length, date],
+      ['Total présences', total, ''],
+    ])}
+    <div class="panel"><div class="panel-head"><h2>Présences du ${date}</h2></div>
+      <div class="panel-body">
+        ${locked ? emptyState('Journée verrouillée','Seul le responsable de zone consulte les jours passés.') :
+          rows.length===0 ? emptyState('Aucune présence','Aucune déclaration LP à cette date.') : `
+        <table><thead><tr><th>Gérant</th><th>Superviseur</th><th>Présences</th><th>Référence</th><th>Notes</th></tr></thead><tbody>
+        ${rows.map(e=>{
+          const g = DB.users.find(u=>u.id===e.gerantId);
+          const sup = DB.users.find(u=>u.id===e.superviseurId);
+          return `<tr>
+            <td>${g? escapeHtml(g.prenom+' '+g.nom):'—'}</td>
+            <td class="muted">${sup? escapeHtml(sup.prenom+' '+sup.nom):'—'}</td>
+            <td class="mono"><b>${e.montant||e.quantite||0}</b></td>
+            <td class="mono muted">${escapeHtml(e.ref||'—')}</td>
+            <td class="muted">${escapeHtml(e.notes||'—')}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
+}
+function lpRowsFor(date){
+  const rows = [['Gérant','Superviseur','Présences','Référence','Notes']];
+  DB.lp.filter(e=>e.date===date && (SESSION.role==='responsable_zone' || e.superviseurId===SESSION.id)).forEach(e=>{
+    const g = DB.users.find(u=>u.id===e.gerantId);
+    const sup = DB.users.find(u=>u.id===e.superviseurId);
+    rows.push([g?g.prenom+' '+g.nom:'—', sup?sup.prenom+' '+sup.nom:'—', e.montant||e.quantite||0, e.ref||'—', e.notes||'—']);
+  });
+  return rows;
+}
+function printLPJour(){
+  const date = window._lpViewDate || todayStr();
+  const rows = lpRowsFor(date);
+  exportToPDF('Liste des présences (LP)', 'Journée du '+date, rows[0], rows.slice(1));
+}
+function exportLPExcel(){
+  const date = window._lpViewDate || todayStr();
+  exportToExcel(lpRowsFor(date), 'lp-'+date, 'LP');
+}
+
+/* =========================================================================
+   TRAÇABILITÉ — affectation des PDV et parcours de chaque SIM par son ID
+   ========================================================================= */
+function renderTrace(){
+  const main = document.getElementById('mainContent');
+  const q = (window._traceQuery||'').toLowerCase();
+  const sims = DB.sims.filter(s=> !q || s.id.toLowerCase().includes(q) || (s.iccid||'').toLowerCase().includes(q));
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>🔎 Traçabilité</h1><p>Chaque SIM créée porte un ID unique : suivez son parcours complet (PDV, agents, titulaires successifs).</p></div>
+      <div class="panel-actions">
+        <input class="search-input" placeholder="Rechercher un ID SIM ou un ICCID…" value="${escapeHtml(window._traceQuery||'')}" oninput="window._traceQuery=this.value;render();">
+        <button class="btn btn-ghost btn-sm export-btn" onclick="exportTraceExcel()">⬇ Excel</button>
+      </div>
+    </div>
+    ${cardsRow([
+      ['SIM tracées', DB.sims.length, DB.sims.filter(s=>s.statut==='attribuee').length+' attribuées'],
+      ['PDV suivis', DB.pdvs.length, DB.pdvs.filter(p=>p.gerantId).length+' avec gérant affecté'],
+      ['Titulaires cumulés', DB.sims.reduce((a,s)=>a+(s.history||[]).filter(h=>h.event==='Attribution').length,0), 'toutes SIM confondues'],
+    ])}
+    <div class="panel"><div class="panel-head"><h2>Affectation des points de vente</h2></div>
+      <div class="panel-body">
+        ${DB.pdvs.length===0 ? emptyState('Aucun PDV','Chaque PDV créé apparaîtra ici avec sa date de création et son affectation.') : `
+        <table><thead><tr><th>PDV</th><th>Localisation</th><th>Créé le</th><th>Créé par</th><th>Gérant affecté</th><th>SIM rattachées</th></tr></thead><tbody>
+        ${DB.pdvs.map(p=>{
+          const createur = DB.users.find(u=>u.id===p.createdBy);
+          const gerant = DB.users.find(u=>u.id===p.gerantId);
+          const nbSims = DB.sims.filter(s=>s.pdvId===p.id).length;
+          return `<tr>
+            <td><b>${escapeHtml(p.nom)}</b></td>
+            <td class="muted">${escapeHtml(p.lieu||'—')}</td>
+            <td class="mono muted">${fmtDate(p.createdAt)}</td>
+            <td class="muted">${createur? escapeHtml(createur.prenom+' '+createur.nom):'—'}</td>
+            <td>${gerant? escapeHtml(gerant.prenom+' '+gerant.nom):'<span class="badge badge-warn">Non affecté</span>'}</td>
+            <td class="mono">${nbSims}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Parcours des SIM${q? ' — résultats pour « '+escapeHtml(window._traceQuery)+' »':''}</h2></div>
+      <div class="panel-body">
+        ${sims.length===0 ? emptyState('Aucune SIM','Aucune SIM ne correspond à cette recherche.') : `
+        <table><thead><tr><th>ID de traçage</th><th>ICCID</th><th>Statut</th><th>PDV</th><th>Agent</th><th>Titulaires</th><th>Retraits</th><th></th></tr></thead><tbody>
+        ${sims.map(s=>{
+          const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
+          const agent = DB.users.find(u=>u.id===s.agentId);
+          const titulaires = (s.history||[]).filter(h=>h.event==='Attribution').length;
+          const retraits = (s.history||[]).filter(h=>h.event==='Retrait').length;
+          return `<tr>
+            <td class="mono"><b>${s.id}</b></td>
+            <td class="mono">${escapeHtml(s.iccid||'—')}</td>
+            <td>${s.statut==='attribuee'?'<span class="badge badge-ok">Attribuée</span>': s.statut==='stock'?'<span class="badge badge-warn">En stock</span>':'<span class="badge badge-locked">'+escapeHtml(s.statut)+'</span>'}</td>
+            <td class="muted">${pdv? escapeHtml(pdv.nom):'—'}</td>
+            <td class="muted">${agent? escapeHtml(agent.prenom+' '+agent.nom):'—'}</td>
+            <td class="mono"><b>${titulaires}</b> personne${titulaires>1?'s':''}</td>
+            <td class="mono">${retraits}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openSimHistory('${s.id}')">Tracer</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
+}
+function exportTraceExcel(){
+  const rows = [['ID de traçage','ICCID','Statut','PDV','Agent','Titulaires','Retraits']];
+  DB.sims.forEach(s=>{
+    const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
+    const agent = DB.users.find(u=>u.id===s.agentId);
+    rows.push([s.id, s.iccid||'—', s.statut, pdv?pdv.nom:'—', agent?agent.prenom+' '+agent.nom:'—',
+      (s.history||[]).filter(h=>h.event==='Attribution').length,
+      (s.history||[]).filter(h=>h.event==='Retrait').length]);
+  });
+  exportToExcel(rows, 'tracabilite-sims', 'Traçabilité');
+}
+
+/* =========================================================================
+   MES AGENTS (vue du gérant : agents affiliés directement ou via ses PDV)
+   ========================================================================= */
+function renderMesAgents(){
+  const main = document.getElementById('mainContent');
+  const myPdvIds = DB.pdvs.filter(p=>p.gerantId===SESSION.id).map(p=>p.id);
+  const mine = DB.users.filter(u=> u.role==='agent' && (
+    u.gerantId===SESSION.id ||
+    DB.sims.some(s=> s.agentId===u.id && myPdvIds.includes(s.pdvId))
+  ));
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Mes agents</h1><p>Agents affiliés à votre gestion (directement ou via vos points de vente).</p></div></div>
+    ${cardsRow([
+      ['Agents affiliés', mine.length, mine.filter(a=>a.active).length+' actifs'],
+      ['SIM en charge', DB.sims.filter(s=> mine.some(a=>a.id===s.agentId) && s.statut==='attribuee').length, ''],
+    ])}
+    <div class="panel"><div class="panel-head"><h2>Liste de mes agents</h2></div>
+      <div class="panel-body">
+        ${mine.length===0 ? emptyState('Aucun agent affilié','Demandez au responsable de zone de vous affilier des agents (création ou modification du compte agent).') : `
+        <table><thead><tr><th>Agent</th><th>Code</th><th>Téléphone</th><th>Superviseur</th><th>SIM en charge</th><th>Statut</th></tr></thead><tbody>
+        ${mine.map(a=>{
+          const sup = DB.users.find(x=>x.id===a.superviseurId);
+          const nbSims = DB.sims.filter(s=>s.agentId===a.id && s.statut==='attribuee').length;
+          return `<tr>
+            <td><div class="name-cell"><img class="avatar-sm" src="${a.photo || defaultAvatar()}">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</div></td>
+            <td class="mono">${a.code}</td>
+            <td class="mono">${escapeHtml(a.tel||'—')}</td>
+            <td class="muted">${sup? escapeHtml(sup.prenom+' '+sup.nom):'—'}</td>
+            <td class="mono">${nbSims}</td>
+            <td>${a.active?'<span class="badge badge-ok">Actif</span>':'<span class="badge badge-danger">Suspendu</span>'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
 }
 
 /* =========================================================================
@@ -2716,18 +3298,18 @@ function filterAudit(q){
 }
 
 /* =========================================================================
-   RAPPORTS (RZ — annuel / trimestriel)
+   RAPPORTS (RZ — mensuel / annuel)
    ========================================================================= */
 function renderReports(){
   const main = document.getElementById('mainContent');
   main.innerHTML = `
-    <div class="topbar"><div><h1>Rapports annuel & trimestriel</h1><p>Générez une synthèse des indicateurs de la zone, ou comparez deux périodes.</p></div></div>
+    <div class="topbar"><div><h1>Rapports mensuel & annuel</h1><p>Générez une synthèse des indicateurs de la zone, ou comparez deux périodes.</p></div></div>
     <div class="panel">
       <div class="panel-head"><h2>Générer un rapport</h2></div>
       <div class="panel-body">
         <div class="grid-2">
           <div class="field"><label>Type de rapport</label>
-            <select id="rp_type"><option value="trimestriel">Trimestriel</option><option value="annuel">Annuel</option></select></div>
+            <select id="rp_type"><option value="mensuel">Mensuel</option><option value="annuel">Annuel</option><option value="trimestriel">Trimestriel</option></select></div>
           <div class="field"><label>Période</label>
             <select id="rp_periode">${reportPeriodOptions()}</select></div>
         </div>
@@ -2815,7 +3397,13 @@ function reportPeriodOptions(){
   const y = new Date().getFullYear();
   let opts = '';
   for(let yr=y; yr>=y-3; yr--){
-    opts += `<option value="Q1-${yr}">T1 ${yr}</option><option value="Q2-${yr}">T2 ${yr}</option><option value="Q3-${yr}">T3 ${yr}</option><option value="Q4-${yr}">T4 ${yr}</option><option value="Y-${yr}">Année ${yr}</option>`;
+    for(let m=12; m>=1; m--){
+      const mm = String(m).padStart(2,'0');
+      if(yr===y && m>new Date().getMonth()+1) continue;
+      opts += `<option value="M${mm}-${yr}">${new Date(yr, m-1, 1).toLocaleDateString('fr-FR',{month:'long'})} ${yr}</option>`;
+    }
+    opts += `<option value="Y-${yr}">Année ${yr}</option>`;
+    opts += `<option value="Q1-${yr}">T1 ${yr}</option><option value="Q2-${yr}">T2 ${yr}</option><option value="Q3-${yr}">T3 ${yr}</option><option value="Q4-${yr}">T4 ${yr}</option>`;
   }
   return opts;
 }
@@ -2896,6 +3484,12 @@ function periodDateRange(periode){
     const year = periode.split('-')[1];
     return { start:`${year}-01-01`, end:`${year}-12-31` };
   }
+  if(periode.startsWith('M')){
+    const [m, year] = periode.split('-');
+    const mn = Number(m.replace('M',''));
+    const lastDay = new Date(Number(year), mn, 0).getDate();
+    return { start:`${year}-${String(mn).padStart(2,'0')}-01`, end:`${year}-${String(mn).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}` };
+  }
   const [q, year] = periode.split('-');
   const qn = Number(q.replace('Q',''));
   const startMonth = (qn-1)*3+1;
@@ -2923,6 +3517,10 @@ function computeStatsForPeriod(periode){
 }
 function periodeLabel(periode){
   if(periode.startsWith('Y-')) return 'Année '+periode.split('-')[1];
+  if(periode.startsWith('M')){
+    const [m,y] = periode.split('-');
+    return new Date(Number(y), Number(m.replace('M',''))-1, 1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  }
   const [q,y] = periode.split('-');
   return 'T'+q.replace('Q','')+' '+y;
 }
