@@ -420,7 +420,7 @@
   .delta-up{color:var(--ok);font-weight:600;}
   .delta-down{color:var(--danger);font-weight:600;}
 
-  /* Cartes PDV */
+  /* Cartes Zone */
   .pdv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
   .pdv-card{
     background:#FCFBFA;border:1.5px solid var(--line);border-radius:6px;padding:14px 16px;cursor:pointer;transition:.12s;
@@ -568,7 +568,7 @@
    déploiement autonome (GitHub Pages, Firebase Hosting), on branche la même
    API sur la Realtime Database afin que TOUTES les données (comptes, SIM, CA,
    objectifs...) soient partagées en temps réel entre tous les appareils
-   (responsable de zone, superviseurs, gérants, agents). Si la base est
+   (responsable de zone, superviseurs, grossistes, agents). Si la base est
    indisponible (config manquante, hors-ligne), on retombe sur localStorage
    pour que l'application reste utilisable. */
 /* ---------- LOGO EIGHT HUIT (integre, fond transparent) ---------- */
@@ -658,7 +658,7 @@ if(typeof window.storage === 'undefined'){
 }
 
 /* ---------- SYNCHRONISATION TEMPS REEL ----------
-   Dès qu'un autre appareil (RZ, superviseur, gérant, agent) enregistre une
+   Dès qu'un autre appareil (RZ, superviseur, grossiste, agent) enregistre une
    modification, ce listener met à jour la base localement et rafraîchit
    l'écran affiché, sans que l'utilisateur ait besoin de recharger la page. */
 function startCloudSync(){
@@ -773,6 +773,44 @@ function drawChart(canvasId, type, labels, data, color, labelText){
   });
 }
 /* Diagramme circulaire (répartition) professionnel */
+/* ---------- Comparaison Pointage numérique / Secrétariat ----------
+   Convertit une heure "HH:MM:SS" ou "HH:MM" en minutes depuis minuit, pour
+   pouvoir la tracer sur un graphique, et inversement pour l'affichage. */
+function timeToMinutes(t){
+  if(!t) return null;
+  const parts = String(t).split(':').map(Number);
+  if(parts.length<2 || isNaN(parts[0])) return null;
+  return parts[0]*60 + (parts[1]||0);
+}
+function minutesToTime(m){
+  if(m==null || isNaN(m)) return '—';
+  const h = Math.floor(m/60), mm = Math.round(m%60);
+  return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+}
+function drawTimeComparisonChart(canvasId, labels, seriesA, seriesB, labelA, labelB, colorA, colorB){
+  destroyChart(canvasId);
+  const el = document.getElementById(canvasId);
+  if(!el || typeof Chart==='undefined') return;
+  chartInstances[canvasId] = new Chart(el, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:labelA, data:seriesA, backgroundColor:colorA, borderRadius:4, maxBarThickness:16 },
+      { label:labelB, data:seriesB, backgroundColor:colorB, borderRadius:4, maxBarThickness:16 },
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'bottom', labels:{font:{family:'Inter',size:11}, boxWidth:12, boxHeight:12} },
+        tooltip:{ backgroundColor:'#1B1B1F', padding:10, cornerRadius:6,
+          callbacks:{ label:c=> c.dataset.label+' : '+(c.parsed.y!=null?minutesToTime(c.parsed.y):'—') } }
+      },
+      scales:{
+        y:{ min:6*60, max:20*60, ticks:{ stepSize:60, callback:v=>minutesToTime(v), font:{family:'Inter',size:10.5} }, grid:{color:'#EFEBE4'} },
+        x:{ grid:{display:false}, ticks:{font:{family:'Inter',size:10.5}} }
+      }
+    }
+  });
+}
 function drawDoughnut(canvasId, labels, data, colors, labelText){
   destroyChart(canvasId);
   const el = document.getElementById(canvasId);
@@ -894,7 +932,7 @@ function objKey(type, gerantId, ym){ return `${type}_${gerantId}_${ym}`; }
 function getObjectif(type, gerantId, ym){ return Number(DB.objectifs[objKey(type,gerantId,ym)] || 0); }
 function computeMonthTotal(type, gerantId, ym){
   if(type==='sim'){
-    /* SIM attribuées dans le mois sur les PDV de ce gérant */
+    /* SIM attribuées dans le mois sur les Zone de ce grossiste */
     const myPdvIds = DB.pdvs.filter(p=>p.gerantId===gerantId).map(p=>p.id);
     return DB.sims.filter(s=> myPdvIds.includes(s.pdvId))
       .reduce((a,s)=> a + (s.history||[]).filter(h=>h.event==='Attribution' && monthKey(String(h.ts).slice(0,10))===ym).length, 0);
@@ -939,7 +977,7 @@ function openObjectifsModal(type){
     : DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
   const ym = todayStr().slice(0,7);
   document.getElementById('modalTitle').textContent = `Objectifs ${typeLabel(type)} — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}`;
-  document.getElementById('modalBody').innerHTML = scope.length===0 ? emptyState('Aucun gérant','Créez un gérant avant de définir des objectifs.') :
+  document.getElementById('modalBody').innerHTML = scope.length===0 ? emptyState('Aucun grossiste','Créez un grossiste avant de définir des objectifs.') :
     scope.map(g=>`
       <div class="field">
         <label>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)} <span class="muted mono" style="text-transform:none;">(${g.code})</span></label>
@@ -964,13 +1002,42 @@ async function saveObjectifs(type, gerantIds){
 /* ---------- OBJECTIFS DES SUPERVISEURS (fixés par le RZ) ---------- */
 function objKeySup(type, supId, ym){ return `${type}_${supId}_${ym}`; }
 function getObjectifSup(type, supId, ym){ return Number(DB.objectifsSup[objKeySup(type,supId,ym)] || 0); }
+/* ---------- OBJECTIFS AGENTS & CLIENTS (fixés par le superviseur) ----------
+   Un objectif unique : le CA prévu du mois, qui s'affiche automatiquement
+   sur la fiche de réalisation de l'agent/du client. */
+function objKeyAgent(agentId, ym){ return `agent_${agentId}_${ym}`; }
+function getObjectifAgent(agentId, ym){ return Number(DB.objectifsAgent[objKeyAgent(agentId,ym)] || 0); }
+function objKeyClient(clientId, ym){ return `client_${clientId}_${ym}`; }
+function getObjectifClient(clientId, ym){ return Number(DB.objectifsClient[objKeyClient(clientId,ym)] || 0); }
+/* ---------- RÉALISATION DES AGENTS ----------
+   Chaque déclaration journalière d'un agent s'additionne automatiquement
+   dans sa réalisation mensuelle (simple somme des entrées du mois). */
+function computeRealisationMois(agentId, ym){
+  return DB.realisations.filter(r=> r.agentId===agentId && monthKey(r.date)===ym).reduce((a,r)=>a+Number(r.montant||0),0);
+}
+function nbZonesServiesMois(agentId, ym){
+  const ids = new Set(DB.realisations.filter(r=> r.agentId===agentId && monthKey(r.date)===ym && r.pdvId).map(r=>r.pdvId));
+  return ids.size;
+}
+function realisationSeries(agentId, days){
+  days = days || 14;
+  const labels=[], data=[];
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().slice(0,10);
+    labels.push(d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}));
+    const sum = DB.realisations.filter(r=> r.date===ds && (!agentId || r.agentId===agentId)).reduce((a,r)=>a+Number(r.montant||0),0);
+    data.push(sum);
+  }
+  return {labels, data};
+}
 function computeMonthTotalSup(type, supId, ym){
   const myGerantIds = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===supId).map(g=>g.id);
   if(type==='sim'){ return myGerantIds.reduce((a,gid)=> a + computeMonthTotal('sim', gid, ym), 0); }
   return (DB[type]||[]).filter(e=> myGerantIds.includes(e.gerantId) && monthKey(e.date)===ym).reduce((a,e)=>a+Number(e.montant||0),0);
 }
 
-/* ---------- PAGE GLOBALE : OBJECTIFS (visible RZ / superviseur / gérant) ---------- */
+/* ---------- PAGE GLOBALE : OBJECTIFS (visible RZ / superviseur / grossiste) ---------- */
 function renderObjectifsGlobal(){
   const main = document.getElementById('mainContent');
   const role = SESSION.role;
@@ -982,13 +1049,13 @@ function renderObjectifsGlobal(){
     const superviseurs = DB.users.filter(u=>u.role==='superviseur');
     const gerants = DB.users.filter(u=>u.role==='gerant');
     main.innerHTML = `
-      <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Définissez les objectifs mensuels des superviseurs et des gérants — visibles automatiquement chez eux.</p></div></div>
+      <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Définissez les objectifs mensuels des superviseurs et des grossistes — visibles automatiquement chez eux.</p></div></div>
       <div class="tabgroup">
         <div class="tabgroup-head"><h3>Objectifs par rôle</h3></div>
         <div class="tabgroup-body">
           <div class="tabs">
             <button class="tab-btn active" data-otab="sup" onclick="switchObjTab('sup')">Superviseurs</button>
-            <button class="tab-btn" data-otab="ger" onclick="switchObjTab('ger')">Gérants</button>
+            <button class="tab-btn" data-otab="ger" onclick="switchObjTab('ger')">Grossistes</button>
           </div>
           <div id="objTabWrap">${objSupView(superviseurs, ym, moisLabel)}</div>
         </div>
@@ -1000,7 +1067,7 @@ function renderObjectifsGlobal(){
   if(role==='superviseur'){
     const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
     main.innerHTML = `
-      <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Objectifs fixés par le responsable de zone, et objectifs de vos gérants.</p></div></div>
+      <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Objectifs fixés par le responsable de zone, et objectifs de vos grossistes.</p></div></div>
       <div class="panel"><div class="panel-head"><h2>Mes objectifs — ${moisLabel}</h2></div>
         <div class="panel-body">
           ${types.map(t=>{
@@ -1013,10 +1080,10 @@ function renderObjectifsGlobal(){
           }).join('')}
         </div>
       </div>
-      <div class="panel"><div class="panel-head"><h2>Objectifs de mes gérants — ${moisLabel}</h2></div>
+      <div class="panel"><div class="panel-head"><h2>Objectifs de mes grossistes — ${moisLabel}</h2></div>
         <div class="panel-body">
-          ${myGerants.length===0 ? emptyState('Aucun gérant','Créez un gérant pour lui fixer des objectifs.') : `
-          <table><thead><tr><th>Gérant</th>${types.map(t=>`<th>${typeLabel(t)}</th>`).join('')}<th></th></tr></thead><tbody>
+          ${myGerants.length===0 ? emptyState('Aucun grossiste','Créez un grossiste pour lui fixer des objectifs.') : `
+          <table><thead><tr><th>Grossiste</th>${types.map(t=>`<th>${typeLabel(t)}</th>`).join('')}<th></th></tr></thead><tbody>
           ${myGerants.map(g=>`<tr>
             <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
             ${types.map(t=>{ const tar=getObjectif(t,g.id,ym); return `<td class="mono">${tar? tar.toLocaleString('fr-FR')+' '+unitFor(t) : '—'}</td>`; }).join('')}
@@ -1063,10 +1130,10 @@ function objSupView(superviseurs, ym, moisLabel){
 function objGerView(){
   const gerants = DB.users.filter(u=>u.role==='gerant');
   const ym = todayStr().slice(0,7);
-  return `<div class="panel"><div class="panel-head"><h2>Objectifs des gérants — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</h2></div>
+  return `<div class="panel"><div class="panel-head"><h2>Objectifs des grossistes — ${new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</h2></div>
     <div class="panel-body">
-      ${gerants.length===0 ? emptyState('Aucun gérant','—') : `
-      <table><thead><tr><th>Gérant</th><th>Superviseur</th><th>CA</th><th>TDR</th><th>TDA</th><th>LP</th><th></th></tr></thead><tbody>
+      ${gerants.length===0 ? emptyState('Aucun grossiste','—') : `
+      <table><thead><tr><th>Grossiste</th><th>Superviseur</th><th>CA</th><th>TDR</th><th>TDA</th><th>LP</th><th></th></tr></thead><tbody>
       ${gerants.map(g=>{ const sup = DB.users.find(u=>u.id===g.superviseurId); return `<tr>
         <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
         <td class="muted">${sup? sup.prenom+' '+sup.nom : '—'}</td>
@@ -1126,9 +1193,9 @@ async function saveGerantObjectifs(gerantId){
     const val = document.getElementById('oGer_'+t).value;
     DB.objectifs[objKey(t,gerantId,ym)] = val ? Number(val) : 0;
   });
-  logAction('Objectifs gérant définis', `${gerantId} — ${ym}`);
+  logAction('Objectifs grossiste définis', `${gerantId} — ${ym}`);
   await saveDB();
-  closeModal(); toast('Objectifs enregistrés — visibles chez le gérant'); render();
+  closeModal(); toast('Objectifs enregistrés — visibles chez le grossiste'); render();
 }
 
 /* ---------- SIGNATURE : ARC DE CYCLE JOURNALIER ----------
@@ -1332,6 +1399,11 @@ function ensureDefaults(){
   if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes=[];
   if(!Array.isArray(DB.om)) DB.om=[];
   if(!Array.isArray(DB.pointages)) DB.pointages=[];
+  if(!Array.isArray(DB.secAttendance)) DB.secAttendance=[];
+  if(!Array.isArray(DB.clients)) DB.clients=[];
+  if(!Array.isArray(DB.realisations)) DB.realisations=[];
+  if(!DB.objectifsAgent) DB.objectifsAgent={};
+  if(!DB.objectifsClient) DB.objectifsClient={};
   /* Migration : le code de pointage DOIT toujours être identique au mot de
      passe. Des comptes créés/modifiés avant la mise en place de cette règle
      (ou dont un code personnalisé avait été défini manuellement) pouvaient
@@ -1735,7 +1807,7 @@ function renderPointage(){
       ['Sorties pointées', rows.filter(p=>p.sortie).length, ''],
     ])}
     <div class="panel"><div class="panel-head"><h2>Liste des présences — ${date}</h2>
-        <button class="btn btn-ghost btn-sm" onclick="navigate('lp')">Voir les LP des gérants →</button></div>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('lp')">Voir les LP des grossistes →</button></div>
       <div class="panel-body">
         ${rows.length===0 ? emptyState('Aucun pointage', 'Personne n\'a encore pointé à cette date.') : `
         <table><thead><tr><th>Employé</th><th>Code</th><th>Rôle</th><th>Entrée</th><th>Sortie</th><th>Méthode</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
@@ -1879,6 +1951,156 @@ async function deletePointage(id){
   render();
 }
 function methodeLabel(m){ return {empreinte:'☝ Empreinte', photo:'📷 Photo', code:'Code'}[m] || (m||'—'); }
+
+/* =========================================================================
+   SECRÉTARIAT — recherche d'un grossiste et saisie manuelle de sa présence
+   ========================================================================= */
+function renderSecAttendance(){
+  const main = document.getElementById('mainContent');
+  const q = (window._secQuery||'').toLowerCase();
+  const grossistes = DB.users.filter(u=>u.role==='gerant' && u.active &&
+    (!q || (u.prenom+' '+u.nom).toLowerCase().includes(q) || u.code.toLowerCase().includes(q)));
+  const today = todayStr();
+  const todays = DB.secAttendance.filter(e=>e.date===today);
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Présences des grossistes</h1><p>Recherchez un grossiste puis notez l'heure d'arrivée ou de départ que vous constatez.</p></div></div>
+    <div class="panel"><div class="panel-head"><h2>Rechercher un grossiste</h2></div>
+      <div class="panel-body">
+        <input class="search-input" style="width:100%;margin-bottom:12px;" placeholder="Nom ou code du grossiste…" value="${escapeHtml(window._secQuery||'')}" oninput="window._secQuery=this.value;render();">
+        ${grossistes.length===0 ? emptyState('Aucun résultat','Aucun grossiste ne correspond à cette recherche.') : `
+        <div class="pt-photo-grid">
+          ${grossistes.map(g=>`<button type="button" class="pt-photo-tile" onclick="openSecAttendanceForm('${g.id}')" title="${escapeHtml(g.prenom+' '+g.nom)}">
+            <img src="${g.photo || defaultAvatar()}">
+            <span class="pt-tile-name">${escapeHtml(g.prenom)}</span>
+          </button>`).join('')}
+        </div>`}
+      </div>
+    </div>
+    <div id="secFormZone"></div>
+    <div class="panel"><div class="panel-head"><h2>Présences notées aujourd'hui</h2></div>
+      <div class="panel-body">
+        ${todays.length===0 ? emptyState('Aucune présence notée','Recherchez un grossiste ci-dessus pour commencer.') : `
+        <table><thead><tr><th>Grossiste</th><th>Arrivée</th><th>Départ</th><th>Noté par</th></tr></thead><tbody>
+        ${todays.map(e=>{
+          const g = DB.users.find(u=>u.id===e.grossisteId) || {prenom:'?',nom:''};
+          const sec = DB.users.find(u=>u.id===e.secretaireId) || {prenom:'?',nom:''};
+          return `<tr><td>${escapeHtml(g.prenom+' '+g.nom)}</td><td class="mono">${e.entree||'—'}</td><td class="mono">${e.sortie||'—'}</td><td class="muted">${escapeHtml(sec.prenom+' '+sec.nom)}</td></tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
+}
+function openSecAttendanceForm(grossisteId){
+  const g = DB.users.find(u=>u.id===grossisteId);
+  if(!g) return;
+  const today = todayStr();
+  const existing = DB.secAttendance.find(e=>e.grossisteId===grossisteId && e.date===today);
+  const zone = document.getElementById('secFormZone');
+  zone.innerHTML = `<div class="panel"><div class="panel-head"><h2>Présence de ${escapeHtml(g.prenom+' '+g.nom)} — ${today}</h2></div>
+    <div class="panel-body">
+      <div class="grid-2">
+        <div class="field"><label>Heure d'arrivée constatée</label><input type="text" id="sec_entree" value="${escapeHtml(existing?existing.entree||'':'')}" placeholder="ex : 08:05"></div>
+        <div class="field"><label>Heure de départ constatée</label><input type="text" id="sec_sortie" value="${escapeHtml(existing?existing.sortie||'':'')}" placeholder="ex : 17:20"></div>
+      </div>
+      <div class="field"><label>Notes</label><input type="text" id="sec_notes" value="${escapeHtml(existing?existing.notes||'':'')}"></div>
+      <button class="btn btn-primary" onclick="saveSecAttendance('${grossisteId}')">Enregistrer la présence</button>
+    </div></div>`;
+}
+async function saveSecAttendance(grossisteId){
+  const today = todayStr();
+  const entree = document.getElementById('sec_entree').value.trim();
+  const sortie = document.getElementById('sec_sortie').value.trim();
+  const notes = document.getElementById('sec_notes').value.trim();
+  if(!entree && !sortie){ toast('Indiquez au moins une heure'); return; }
+  let e = DB.secAttendance.find(x=>x.grossisteId===grossisteId && x.date===today);
+  if(!e){ e = { id: uid('SA'), grossisteId, date: today, entree:null, sortie:null, secretaireId: SESSION.id, notes:'' }; DB.secAttendance.push(e); }
+  if(entree) e.entree = entree;
+  if(sortie) e.sortie = sortie;
+  e.notes = notes;
+  e.secretaireId = SESSION.id;
+  const g = DB.users.find(u=>u.id===grossisteId);
+  logAction('Présence notée (secrétariat)', (g?g.code:'')+' — '+today);
+  await saveDB();
+  toast('Présence enregistrée');
+  render();
+}
+
+/* =========================================================================
+   COMPARAISON — Pointage numérique vs présence notée par le secrétariat
+   ========================================================================= */
+function renderComparaisonPointage(){
+  const main = document.getElementById('mainContent');
+  const grossistes = DB.users.filter(u=>u.role==='gerant');
+  const selId = (window._cmpGrossisteId && grossistes.some(g=>g.id===window._cmpGrossisteId))
+    ? window._cmpGrossisteId : (grossistes[0] && grossistes[0].id) || null;
+  window._cmpGrossisteId = selId;
+  main.innerHTML = `
+    <div class="topbar">
+      <div><h1>📊 Pointage vs Secrétariat</h1><p>Comparez l'heure pointée numériquement par le grossiste et l'heure notée par le secrétariat.</p></div>
+      ${grossistes.length ? `<div class="panel-actions">
+        <select id="cmp_grossiste" onchange="window._cmpGrossisteId=this.value;render();">
+          ${grossistes.map(g=>`<option value="${g.id}" ${g.id===selId?'selected':''}>${escapeHtml(g.prenom+' '+g.nom)} (${g.code})</option>`).join('')}
+        </select>
+      </div>` : ''}
+    </div>
+    ${grossistes.length===0 ? emptyState('Aucun grossiste','Créez un grossiste pour utiliser cette comparaison.') : `
+    <div class="grid-2">
+      <div class="panel"><div class="panel-head"><h2>Heure d'arrivée — 14 derniers jours</h2></div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="cmp_entree"></canvas></div></div></div>
+      <div class="panel"><div class="panel-head"><h2>Heure de départ — 14 derniers jours</h2></div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="cmp_sortie"></canvas></div></div></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Détail jour par jour</h2>
+      <button class="btn btn-ghost btn-sm export-btn" onclick="exportCmpExcel('${selId}')">⬇ Excel</button></div>
+      <div class="panel-body">${cmpTable(selId)}</div>
+    </div>`}
+  `;
+  if(grossistes.length && selId) drawCmpCharts(selId);
+}
+function cmpDays(grossisteId, days){
+  days = days||14;
+  const rows = [];
+  for(let i=days-1;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const ds = d.toISOString().slice(0,10);
+    const p = DB.pointages.find(x=>x.userId===grossisteId && x.date===ds);
+    const s = DB.secAttendance.find(x=>x.grossisteId===grossisteId && x.date===ds);
+    rows.push({ date: ds, label: d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),
+      pEntree: p?p.entree:null, pSortie: p?p.sortie:null, sEntree: s?s.entree:null, sSortie: s?s.sortie:null });
+  }
+  return rows;
+}
+function cmpTable(grossisteId){
+  const rows = cmpDays(grossisteId, 14);
+  return `<table><thead><tr><th>Date</th><th>Entrée — Pointage</th><th>Entrée — Secrétariat</th><th>Écart</th><th>Sortie — Pointage</th><th>Sortie — Secrétariat</th><th>Écart</th></tr></thead><tbody>
+    ${rows.map(r=>{
+      const eDiff = (r.pEntree && r.sEntree) ? Math.abs(timeToMinutes(r.pEntree)-timeToMinutes(r.sEntree)) : null;
+      const sDiff = (r.pSortie && r.sSortie) ? Math.abs(timeToMinutes(r.pSortie)-timeToMinutes(r.sSortie)) : null;
+      return `<tr>
+        <td class="mono">${r.date}</td>
+        <td class="mono">${r.pEntree||'—'}</td>
+        <td class="mono">${r.sEntree||'—'}</td>
+        <td>${eDiff!=null ? `<span class="badge ${eDiff>15?'badge-danger':'badge-ok'}">${eDiff} min</span>` : '—'}</td>
+        <td class="mono">${r.pSortie||'—'}</td>
+        <td class="mono">${r.sSortie||'—'}</td>
+        <td>${sDiff!=null ? `<span class="badge ${sDiff>15?'badge-danger':'badge-ok'}">${sDiff} min</span>` : '—'}</td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+function drawCmpCharts(grossisteId){
+  const rows = cmpDays(grossisteId, 14);
+  const labels = rows.map(r=>r.label);
+  drawTimeComparisonChart('cmp_entree', labels, rows.map(r=>timeToMinutes(r.pEntree)), rows.map(r=>timeToMinutes(r.sEntree)), 'Pointage numérique', 'Secrétariat', '#FF6600', '#1F8A4C');
+  drawTimeComparisonChart('cmp_sortie', labels, rows.map(r=>timeToMinutes(r.pSortie)), rows.map(r=>timeToMinutes(r.sSortie)), 'Pointage numérique', 'Secrétariat', '#D14E00', '#146034');
+}
+function exportCmpExcel(grossisteId){
+  const rows = cmpDays(grossisteId, 14);
+  const out = [['Date',"Entrée pointage","Entrée secrétariat","Sortie pointage","Sortie secrétariat"]];
+  rows.forEach(r=> out.push([r.date, r.pEntree||'—', r.sEntree||'—', r.pSortie||'—', r.sSortie||'—']));
+  const g = DB.users.find(u=>u.id===grossisteId);
+  exportToExcel(out, 'comparaison-pointage-'+(g?g.code:grossisteId), 'Comparaison');
+}
 function pointageRowsFor(date){
   const rows = [['Employé','Code','Rôle','Entrée','Sortie','Méthode']];
   DB.pointages.filter(p=>p.date===date).forEach(p=>{
@@ -1919,7 +2141,7 @@ function seedDB(){
         zone:'Zone Centrale', createdAt: nowISO(), createdBy:null, active:true,
         perms:{modifier:true, supprimer:true} }
     ],
-    pdvs: [], // points de vente
+    pdvs: [], // zones
     sims: [], // {id, iccid, statut, clientActuelId?, agentId, pdvId, history:[{clientNom,clientTel,agentId,agentNom,dateAttrib,dateRetrait,motifRetrait}]}
     clients: [], // {id, nom, tel, cni}
     ca: [], // chiffre d'affaires entries {id, gerantId, date, montant, notes, superviseurId}
@@ -1955,7 +2177,7 @@ function logAction(action, details){
 }
 
 /* ---------- ACCES : Verrouillage journalier du superviseur ----------
-   Règle : le superviseur ne voit les activités des gérants (CA/TDR/TDA/LP/mouvements)
+   Règle : le superviseur ne voit les activités des grossistes (CA/TDR/TDA/LP/mouvements)
    QUE pour la journée en cours. Dès que la date change, ces données basculent en
    lecture seule pour le responsable de zone uniquement. */
 function supervisorCanSeeDay(dateStr){
@@ -2022,7 +2244,7 @@ function logout(){
 }
 
 function roleLabel(r){
-  return {responsable_zone:'Responsable de zone', superviseur:'Superviseur', gerant:'Gérant', agent:'Agent'}[r] || r;
+  return {responsable_zone:'Responsable de zone', superviseur:'Superviseur', gerant:'Grossiste', agent:'Agent', secretaire:'Secrétaire', client:'Client'}[r] || r;
 }
 function defaultViewForRole(r){
   return 'dashboard';
@@ -2039,14 +2261,15 @@ function navItems(role){
       ]},
       {sec:'Personnel & accès', items:[
         {id:'personnel', label:'Superviseurs & agents'},
+        {id:'agentsclients', label:'Agents & Clients'},
         {id:'pointage', label:'Pointage du personnel'},
       ]},
       {sec:'Réseau', items:[
-        {id:'pdv', label:'Points de vente'},
+        {id:'pdv', label:'Zones'},
         {id:'sims', label:'SIM'},
         {id:'trace', label:'Traçabilité'},
       ]},
-      {sec:'Activité gérants', items:[
+      {sec:'Activité grossistes', items:[
         {id:'ca', label:'CA'},
         {id:'om', label:'OM'},
         {id:'tdr', label:'TDR'},
@@ -2057,6 +2280,7 @@ function navItems(role){
         {id:'daily', label:'Activité journalière'},
         {id:'audit', label:'Journal d\'audit'},
         {id:'reports', label:'Rapports mensuel/annuel'},
+        {id:'comparaisonPointage', label:'📊 Pointage vs Secrétariat'},
       ]},
       {sec:'Pilotage', items:[
         {id:'objectifs', label:'🎯 Objectifs'},
@@ -2070,14 +2294,14 @@ function navItems(role){
     return [
       {sec:'Vue d\'ensemble', items:[{id:'dashboard', label:'Tableau de bord'}]},
       {sec:'Équipe', items:[
-        {id:'gerants', label:'Gérants'},
-        {id:'accessSup', label:'Codes d\'accès équipe'},
+        {id:'gerants', label:'Grossistes'},
+        {id:'agentsclients', label:'Agents & Clients'},
       ]},
       {sec:'Pilotage', items:[
         {id:'objectifs', label:'🎯 Objectifs'},
       ]},
       {sec:'Réseau', items:[
-        {id:'pdv', label:'Points de vente'},
+        {id:'pdv', label:'Zones'},
         {id:'sims', label:'SIM (déploiement)'},
       ]},
       {sec:'Activité du jour', items:[
@@ -2086,7 +2310,7 @@ function navItems(role){
         {id:'tdr', label:'TDR du jour'},
         {id:'tda', label:'TDA du jour'},
         {id:'lp', label:'LP du jour'},
-        {id:'daily', label:'Mouvements gérants'},
+        {id:'daily', label:'Mouvements grossistes'},
       ]},
     ];
   }
@@ -2109,6 +2333,15 @@ function navItems(role){
       {sec:'Mon activité', items:[
         {id:'dashboard', label:'Tableau de bord'},
         {id:'sims', label:'Gestion des SIM'},
+        {id:'realisation', label:'📈 Ma réalisation'},
+      ]},
+    ];
+  }
+  if(role==='secretaire'){
+    return [
+      {sec:'Mon activité', items:[
+        {id:'dashboard', label:'Tableau de bord'},
+        {id:'secAttendance', label:'Présences grossistes'},
       ]},
     ];
   }
@@ -2180,9 +2413,9 @@ function render(){
     pdv: renderPDV,
     sims: renderSims,
     ca: renderCA,
-    tdr: ()=>renderMoveTable('tdr','TDR — Taux de rupture','Suivi du taux de rupture de stock constaté chez les gérants.'),
-    tda: ()=>renderMoveTable('tda','TDA — Taux d\'inactivité','Suivi du taux d\'inactivité des lignes chez les gérants.'),
-    om: ()=>renderMoveTable('om','OM — Orange Money','Suivi des déclarations Orange Money des gérants.'),
+    tdr: ()=>renderMoveTable('tdr','TDR — Taux de rupture','Suivi du taux de rupture de stock constaté chez les grossistes.'),
+    tda: ()=>renderMoveTable('tda','TDA — Taux d\'inactivité','Suivi du taux d\'inactivité des lignes chez les grossistes.'),
+    om: ()=>renderMoveTable('om','OM — Orange Money','Suivi des déclarations Orange Money des grossistes.'),
     lp: renderLP,
     pointage: renderPointage,
     trace: renderTrace,
@@ -2194,6 +2427,10 @@ function render(){
     accessSup: renderAccessSup,
     settings: renderSettings,
     objectifs: renderObjectifsGlobal,
+    agentsclients: renderAgentsClients,
+    secAttendance: renderSecAttendance,
+    comparaisonPointage: renderComparaisonPointage,
+    realisation: renderRealisation,
   };
   main.innerHTML='';
   (renderers[currentView] || renderDashboard)();
@@ -2248,13 +2485,13 @@ function renderDashboard(){
     statsHtml = cardsRow([
       ['Superviseurs', superviseurs.length, superviseurs.filter(u=>u.active).length+' actifs'],
       ['Agents', agents.length, agents.filter(u=>u.active).length+' actifs'],
-      ['Gérants', gerants.length, gerants.filter(u=>u.active).length+' actifs'],
-      ['Points de vente', DB.pdvs.length, DB.pdvs.filter(p=>p.gerantId).length+' avec gérant'],
+      ['Grossistes', gerants.length, gerants.filter(u=>u.active).length+' actifs'],
+      ['Zones', DB.pdvs.length, DB.pdvs.filter(p=>p.gerantId).length+' avec grossiste'],
       ['SIM attribuées', simsActives, DB.sims.length+' au total'],
       ['CA cumulé', caTotal.toLocaleString('fr-FR')+' GNF', DB.ca.length+' déclarations'],
     ]);
 
-    // Top 5 gérants par CA cumulé
+    // Top 5 grossistes par CA cumulé
     const ranked = gerants.map(g=>({g, total: DB.ca.filter(c=>c.gerantId===g.id).reduce((a,c)=>a+Number(c.montant||0),0)}))
       .sort((a,b)=>b.total-a.total).slice(0,5);
     const trend = last14DaysSeries('ca', null, 30);
@@ -2283,9 +2520,9 @@ function renderDashboard(){
         <div class="panel"><div class="panel-head"><h2>👥 Répartition du personnel</h2></div>
           <div class="panel-body">${miniBarRow([
             {label:'Superviseurs', value:superviseurs.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#E8A200'},
-            {label:'Gérants', value:gerants.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#1F8A4C'},
+            {label:'Grossistes', value:gerants.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#1F8A4C'},
             {label:'Agents', value:agents.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#FF6600'},
-            {label:'PDV', value:DB.pdvs.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length,DB.pdvs.length), color:'#8E44AD'},
+            {label:'Zone', value:DB.pdvs.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length,DB.pdvs.length), color:'#8E44AD'},
           ])}</div></div>
       </div>
       <div class="grid-2">
@@ -2295,12 +2532,12 @@ function renderDashboard(){
           <div class="panel-body"><div class="chart-wrap"><canvas id="dash_om"></canvas></div></div></div>
       </div>
       <div class="grid-2">
-        <div class="panel"><div class="panel-head"><h2>📊 CA du mois par gérant</h2></div>
+        <div class="panel"><div class="panel-head"><h2>📊 CA du mois par grossiste</h2></div>
           <div class="panel-body"><div class="chart-wrap">${caMoisParGerant.every(x=>x.total===0)? emptyState('Aucune donnée','Aucun CA déclaré ce mois-ci.') : '<canvas id="dash_gerants"></canvas>'}</div></div></div>
         <div class="panel"><div class="panel-head"><h2>🍩 Répartition des SIM</h2></div>
           <div class="panel-body"><div class="chart-wrap">${DB.sims.length===0? emptyState('Aucune SIM','—') : '<canvas id="dash_sims"></canvas>'}</div></div></div>
       </div>
-      <div class="panel"><div class="panel-head"><h2>🏆 Top 5 gérants (CA cumulé)</h2></div>
+      <div class="panel"><div class="panel-head"><h2>🏆 Top 5 grossistes (CA cumulé)</h2></div>
         <div class="panel-body">
           ${ranked.length===0 ? emptyState('Aucune donnée','—') : ranked.map((r,i)=>`
             <div class="obj-row"><span>${i+1}. ${escapeHtml(r.g.prenom)} ${escapeHtml(r.g.nom)}</span><b>${r.total.toLocaleString('fr-FR')} GNF</b></div>
@@ -2351,7 +2588,7 @@ function renderDashboard(){
     const todayCA = DB.ca.filter(c=>isToday(c.date) && c.superviseurId===SESSION.id);
     const todayMoves = DB.activityLog.filter(l=> isToday(l.ts) && myGerants.some(g=>g.id===l.userId));
     statsHtml = cardsRow([
-      ['Mes gérants', myGerants.length, myGerants.filter(g=>g.active).length+' actifs'],
+      ['Mes grossistes', myGerants.length, myGerants.filter(g=>g.active).length+' actifs'],
       ["CA aujourd'hui", todayCA.reduce((a,c)=>a+Number(c.montant||0),0).toLocaleString('fr-FR')+' GNF', todayCA.length+' déclarations'],
       ['SIM déployées', DB.sims.filter(s=>s.deployedBy===SESSION.id).length, ''],
       ["Mouvements du jour", todayMoves.length, 'visibles jusqu\'à minuit'],
@@ -2372,10 +2609,28 @@ function renderDashboard(){
     afterRender = ()=> drawChart('dash_g_trend','line', gTrend.labels, gTrend.data, '#FF6600', 'CA (GNF)');
   } else if(role==='agent'){
     const mySims = DB.sims.filter(s=>s.agentId===SESSION.id);
+    const ym = todayStr().slice(0,7);
+    const objectif = getObjectifAgent(SESSION.id, ym);
+    const realisationMois = computeRealisationMois(SESSION.id, ym);
     statsHtml = cardsRow([
       ['SIM en charge', mySims.filter(s=>s.statut==='attribuee').length, ''],
       ['Historique total', mySims.length, 'SIM traitées'],
+      ['Réalisation du mois', realisationMois.toLocaleString('fr-FR')+' GNF', objectif? 'Objectif : '+objectif.toLocaleString('fr-FR')+' GNF' : 'Aucun objectif défini'],
     ]);
+    const rTrend = realisationSeries(SESSION.id, 14);
+    extraHtml = `<div class="panel"><div class="panel-head"><h2>📈 Ma réalisation — 14 derniers jours</h2>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('realisation')">Déclarer ma réalisation →</button></div>
+      <div class="panel-body"><div class="chart-wrap"><canvas id="dash_r_trend"></canvas></div></div></div>`;
+    afterRender = ()=> drawChart('dash_r_trend','line', rTrend.labels, rTrend.data, '#8E44AD', 'Réalisation (GNF)');
+  } else if(role==='secretaire'){
+    const today = todayStr();
+    const mine = DB.secAttendance.filter(e=>e.secretaireId===SESSION.id && e.date===today);
+    statsHtml = cardsRow([
+      ['Présences notées aujourd\'hui', mine.length, ''],
+      ['Grossistes actifs', DB.users.filter(u=>u.role==='gerant' && u.active).length, ''],
+    ]);
+    extraHtml = `<div class="panel"><div class="panel-head"><h2>Accès rapide</h2></div>
+      <div class="panel-body"><button class="btn btn-primary btn-sm" onclick="navigate('secAttendance')">🔎 Rechercher un grossiste et noter sa présence</button></div></div>`;
   }
 
   main.innerHTML = `
@@ -2408,7 +2663,7 @@ function recentActivityTable(){
     // superviseur : uniquement logs du jour, de son équipe + lui-même
     const teamIds = DB.users.filter(u=>u.superviseurId===SESSION.id || u.createdBy===SESSION.id).map(u=>u.id).concat([SESSION.id]);
     logs = logs.filter(l=> isToday(l.ts) && teamIds.includes(l.userId));
-  } else if(SESSION.role==='gerant' || SESSION.role==='agent'){
+  } else if(SESSION.role==='gerant' || SESSION.role==='agent' || SESSION.role==='secretaire'){
     logs = logs.filter(l=> l.userId===SESSION.id);
   }
   logs = logs.slice(0,12);
@@ -2439,7 +2694,7 @@ function renderSettings(){
           <button class="tab-btn active" data-stab="identite" onclick="switchSettingsTab('identite')">Identité & thème</button>
           <button class="tab-btn" data-stab="contacts" onclick="switchSettingsTab('contacts')">Adresse & contacts</button>
           <button class="tab-btn" data-stab="creation" onclick="switchSettingsTab('creation')">Créer du personnel</button>
-          <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des gérants</button>
+          <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des grossistes</button>
           <button class="tab-btn" data-stab="acces" onclick="switchSettingsTab('acces')">Codes d'accès</button>
           <button class="tab-btn" data-stab="autorisations" onclick="switchSettingsTab('autorisations')">Autorisations</button>
           <button class="tab-btn" data-stab="reset" onclick="switchSettingsTab('reset')" style="color:var(--danger);">⚠ Réinitialisation</button>
@@ -2604,10 +2859,17 @@ function settingsCreationView(){
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Créer un gérant</h2></div>
+      <div class="panel-head"><h2>Créer un grossiste</h2></div>
       <div class="panel-body">
-        <p class="muted" style="font-size:12.5px;margin-top:0;">Le responsable de zone peut également créer directement un gérant (normalement créé par un superviseur).</p>
-        <button class="btn btn-primary btn-sm" onclick="openCreateUser('gerant')">+ Gérant</button>
+        <p class="muted" style="font-size:12.5px;margin-top:0;">Le responsable de zone peut également créer directement un grossiste (normalement créé par un superviseur).</p>
+        <button class="btn btn-primary btn-sm" onclick="openCreateUser('gerant')">+ Grossiste</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Créer un secrétaire</h2></div>
+      <div class="panel-body">
+        <p class="muted" style="font-size:12.5px;margin-top:0;">Le secrétaire enregistre manuellement les arrivées/départs qu'il constate, pour comparaison avec le pointage numérique.</p>
+        <button class="btn btn-primary btn-sm" onclick="openCreateUser('secretaire')">+ Secrétaire</button>
       </div>
     </div>
   `;
@@ -2647,9 +2909,9 @@ function settingsAutorisationsView(){
 }
 /* ---------- RÉINITIALISATION DES DONNÉES DE TRAVAIL ----------
    Utile après une période d'essai : remet à zéro les compteurs et
-   mouvements enregistrés par les agents/gérants, sans supprimer les
-   comptes ni les points de vente (qui se suppriment individuellement
-   ailleurs dans Personnel / Points de vente). Réservé au responsable de
+   mouvements enregistrés par les agents/grossistes, sans supprimer les
+   comptes ni les zones (qui se suppriment individuellement
+   ailleurs dans Personnel / Zones). Réservé au responsable de
    zone, protégé par un mot de confirmation tapé manuellement. */
 function settingsResetView(){
   if(SESSION.role!=='responsable_zone'){
@@ -2662,11 +2924,11 @@ function settingsResetView(){
         <p class="muted" style="font-size:12.5px;margin:0 0 14px;line-height:1.6;">
           À utiliser si la base a servi pour un essai et que vous voulez repartir de zéro pour le vrai travail.
           Cette action remet à zéro les compteurs et mouvements cochés ci-dessous. Elle ne touche <b>ni les comptes du
-          personnel, ni les points de vente</b> — pour les supprimer, utilisez les boutons 🗑 dans Personnel et Points de vente.
+          personnel, ni les zones</b> — pour les supprimer, utilisez les boutons 🗑 dans Personnel et Zones.
         </p>
         <div class="reset-check-list">
           <label class="reset-check"><input type="checkbox" id="rz_ca" checked> Déclarations CA, OM, TDR, TDA, LP</label>
-          <label class="reset-check"><input type="checkbox" id="rz_obj" checked> Objectifs fixés (gérants et superviseurs)</label>
+          <label class="reset-check"><input type="checkbox" id="rz_obj" checked> Objectifs fixés (grossistes et superviseurs)</label>
           <label class="reset-check"><input type="checkbox" id="rz_pointages" checked> Pointages du personnel (présences)</label>
           <label class="reset-check"><input type="checkbox" id="rz_sims"> Historique des SIM (remet chaque SIM « en stock », sans titulaire)</label>
           <label class="reset-check"><input type="checkbox" id="rz_reports"> Rapports générés</label>
@@ -2709,10 +2971,10 @@ function settingsCodesView(){
   const gerants = DB.users.filter(u=>u.role==='gerant');
   return `
     <div class="panel">
-      <div class="panel-head"><h2>Codes d'accès des gérants</h2></div>
+      <div class="panel-head"><h2>Codes d'accès des grossistes</h2></div>
       <div class="panel-body">
-        ${gerants.length===0 ? emptyState('Aucun gérant','Créez un gérant depuis l\'onglet « Créer du personnel ».') : `
-        <table><thead><tr><th>Gérant</th><th>Code</th><th>Mot de passe</th><th>Statut</th><th></th></tr></thead><tbody>
+        ${gerants.length===0 ? emptyState('Aucun grossiste','Créez un grossiste depuis l\'onglet « Créer du personnel ».') : `
+        <table><thead><tr><th>Grossiste</th><th>Code</th><th>Mot de passe</th><th>Statut</th><th></th></tr></thead><tbody>
         ${gerants.map(g=>`<tr>
           <td>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</td>
           <td class="mono">${g.code}</td>
@@ -2784,7 +3046,7 @@ function renderPersonnel(){
     ${cardsRow([
       ['Effectif total', totalStaff, totalActive+' actifs'],
       ['Superviseurs', supers.length, ''],
-      ['Gérants', gerants.length, ''],
+      ['Grossistes', gerants.length, ''],
       ['Agents', agents.length, ''],
     ])}
 
@@ -2822,7 +3084,7 @@ function personnelListView(supers, agents, gerants){
     </div>
     <div class="panel">
       <div class="panel-head">
-        <h2>Gérants (${gerants.length})</h2>
+        <h2>Grossistes (${gerants.length})</h2>
         <input class="search-input" placeholder="Rechercher…" oninput="filterPersonnelSection(this,'ger')">
       </div>
       <div class="panel-body" id="secGer">${userTable(gerants,'gerant')}</div>
@@ -2855,7 +3117,7 @@ function switchPersonnelTab(mode){
     : organigrammeView();
 }
 
-/* ---------- ORGANIGRAMME : RZ > Superviseur > Gérants / Agents ---------- */
+/* ---------- ORGANIGRAMME : RZ > Superviseur > Grossistes / Agents ---------- */
 function organigrammeView(){
   const rz = DB.users.find(u=>u.role==='responsable_zone');
   const supers = DB.users.filter(u=>u.role==='superviseur');
@@ -2873,7 +3135,7 @@ function organigrammeView(){
       <div class="org-children">
         ${myGerants.map(g=>`<div class="org-card org-leaf" onclick="openUserProfile('${g.id}')">
           <div class="org-name">${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</div>
-          <div class="org-role">Gérant — ${g.code}</div>
+          <div class="org-role">Grossiste — ${g.code}</div>
         </div>`).join('')}
         ${myAgents.map(a=>`<div class="org-card org-leaf org-agent" onclick="openUserProfile('${a.id}')">
           <div class="org-name">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</div>
@@ -2926,7 +3188,9 @@ function openUserProfile(id){
     </div>
     <table style="margin-bottom:14px;">
       <tr><td class="muted" style="width:40%;">Code d'accès</td><td class="mono">${u.code}</td></tr>
-      <tr><td class="muted">Téléphone</td><td>${escapeHtml(u.tel||'—')}</td></tr>
+      <tr><td class="muted">${u.role==='gerant'?'Numéro personnel':'Téléphone'}</td><td>${escapeHtml(u.tel||'—')}</td></tr>
+      ${u.role==='gerant' ? `<tr><td class="muted">Numéro STK</td><td class="mono">${escapeHtml(u.numSTK||'—')}</td></tr>
+      <tr><td class="muted">Coordonnées géographiques</td><td>${escapeHtml(u.coordGPS||'—')}</td></tr>` : ''}
       <tr><td class="muted">Créé par</td><td>${creator? creator.prenom+' '+creator.nom : '—'}</td></tr>
       <tr><td class="muted">Créé le</td><td class="mono">${fmtDate(u.createdAt)}</td></tr>
       <tr><td class="muted">Dernière connexion</td><td class="mono">${u.lastLogin? fmtDate(u.lastLogin) : 'Jamais connecté'}</td></tr>
@@ -2976,7 +3240,7 @@ function userTable(list, role){
 }
 
 function openCreateUser(role, presetSupervisor){
-  const code = role==='superviseur' ? nextCode('SP') : (role==='agent'?nextCode('AG'): role==='gerant'?nextCode('GE'):'');
+  const code = role==='superviseur' ? nextCode('SP') : (role==='agent'?nextCode('AG'): role==='gerant'?nextCode('GR'): role==='secretaire'?nextCode('SE'):'');
   const pass = genPass();
   document.getElementById('modalTitle').textContent = `Créer un ${roleLabel(role).toLowerCase()}`;
   document.getElementById('modalBody').innerHTML = `
@@ -2992,14 +3256,16 @@ function openCreateUser(role, presetSupervisor){
       <div class="field"><label>Prénom</label><input type="text" id="nu_prenom"></div>
       <div class="field"><label>Nom</label><input type="text" id="nu_nom"></div>
     </div>
-    <div class="field"><label>Téléphone</label><input type="text" id="nu_tel"></div>
-    ${role==='gerant' ? `<div class="field"><label>Point de vente</label>
-      <select id="nu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
+    <div class="field"><label>${role==='gerant'?'Numéro personnel':'Téléphone'}</label><input type="text" id="nu_tel"></div>
+    ${role==='gerant' ? `<div class="field"><label>Numéro STK</label><input type="text" id="nu_stk" placeholder="ex : STK-00123"></div>
+    <div class="field"><label>Coordonnées géographiques</label><input type="text" id="nu_gps" placeholder="ex : 9.5370, -13.6785 ou adresse"></div>` : ''}
+    ${role==='gerant' ? `<div class="field"><label>Zone</label>
+      <select id="nu_pdv"><option value="">— aucune —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
     ${role==='gerant' && SESSION.role==='responsable_zone' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="nu_superviseur_g"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     ${role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="nu_superviseur"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='superviseur'&&u.active).map(s=>`<option value="${s.id}">${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>
-    <div class="field"><label>Gérant affilié</label>
+    <div class="field"><label>Grossiste affilié</label>
       <select id="nu_gerant"><option value="">— aucun —</option>${DB.users.filter(u=>u.role==='gerant'&&u.active).map(g=>`<option value="${g.id}">${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
       <div class="field"><label>Code d'accès (auto)</label><input type="text" id="nu_code" value="${code}" class="mono"></div>
@@ -3046,6 +3312,8 @@ async function saveNewUser(role){
   const modif = document.getElementById('nu_modif').checked;
   const suppr = document.getElementById('nu_suppr').checked;
   const pdvId = role==='gerant' ? document.getElementById('nu_pdv')?.value : null;
+  const numSTK = role==='gerant' ? (document.getElementById('nu_stk')?.value || '').trim() : null;
+  const coordGPS = role==='gerant' ? (document.getElementById('nu_gps')?.value || '').trim() : null;
   const superviseurId = role==='agent' ? document.getElementById('nu_superviseur')?.value
     : role==='gerant' ? (SESSION.role==='superviseur' ? SESSION.id : document.getElementById('nu_superviseur_g')?.value)
     : null;
@@ -3060,6 +3328,8 @@ async function saveNewUser(role){
     id: uid(role.substring(0,2).toUpperCase()),
     role, code, pass, nom, prenom, tel, photo,
     codePointage: pass, /* le code de pointage suit toujours le mot de passe */
+    numSTK: numSTK || null,
+    coordGPS: coordGPS || null,
     pdvId: pdvId || null,
     superviseurId: superviseurId || null,
     gerantId: gerantId,
@@ -3091,14 +3361,16 @@ function openEditUser(id){
       <div class="field"><label>Prénom</label><input type="text" id="eu_prenom" value="${escapeHtml(u.prenom)}"></div>
       <div class="field"><label>Nom</label><input type="text" id="eu_nom" value="${escapeHtml(u.nom)}"></div>
     </div>
-    <div class="field"><label>Téléphone</label><input type="text" id="eu_tel" value="${escapeHtml(u.tel||'')}"></div>
-    ${u.role==='gerant' ? `<div class="field"><label>Point de vente</label>
+    <div class="field"><label>${u.role==='gerant'?'Numéro personnel':'Téléphone'}</label><input type="text" id="eu_tel" value="${escapeHtml(u.tel||'')}"></div>
+    ${u.role==='gerant' ? `<div class="field"><label>Numéro STK</label><input type="text" id="eu_stk" value="${escapeHtml(u.numSTK||'')}"></div>
+    <div class="field"><label>Coordonnées géographiques</label><input type="text" id="eu_gps" value="${escapeHtml(u.coordGPS||'')}"></div>` : ''}
+    ${u.role==='gerant' ? `<div class="field"><label>Zone</label>
       <select id="eu_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}" ${p.id===u.pdvId?'selected':''}>${escapeHtml(p.nom)}</option>`).join('')}</select></div>` : ''}
     ${u.role==='gerant' && SESSION.role==='responsable_zone' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="eu_superviseur_g"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>` : ''}
     ${u.role==='agent' ? `<div class="field"><label>Superviseur responsable</label>
       <select id="eu_superviseur"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='superviseur'&&x.active).map(s=>`<option value="${s.id}" ${s.id===u.superviseurId?'selected':''}>${escapeHtml(s.prenom)} ${escapeHtml(s.nom)}</option>`).join('')}</select></div>
-    <div class="field"><label>Gérant affilié</label>
+    <div class="field"><label>Grossiste affilié</label>
       <select id="eu_gerant"><option value="">— aucun —</option>${DB.users.filter(x=>x.role==='gerant'&&x.active).map(g=>`<option value="${g.id}" ${g.id===u.gerantId?'selected':''}>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}</select></div>` : ''}
     <div class="grid-2">
       <div class="field"><label>Code d'accès</label><input type="text" id="eu_code" value="${u.code}" class="mono"></div>
@@ -3127,6 +3399,10 @@ async function saveEditUser(id){
   if(photoEl) u.photo = photoEl.src.startsWith('data:image') && !photoEl.src.includes('svg+xml') ? photoEl.src : u.photo;
   const pdvSel = document.getElementById('eu_pdv');
   if(pdvSel) u.pdvId = pdvSel.value || null;
+  const stkEl = document.getElementById('eu_stk');
+  if(stkEl) u.numSTK = stkEl.value.trim() || null;
+  const gpsEl = document.getElementById('eu_gps');
+  if(gpsEl) u.coordGPS = gpsEl.value.trim() || null;
   const supSel = document.getElementById('eu_superviseur') || document.getElementById('eu_superviseur_g');
   if(supSel) u.superviseurId = supSel.value || null;
   const gerSel = document.getElementById('eu_gerant');
@@ -3143,7 +3419,7 @@ function openPermUser(id){
   if(!u) return;
   document.getElementById('modalTitle').textContent = `Autorisations — ${u.prenom} ${u.nom}`;
   document.getElementById('modalBody').innerHTML = `
-    <p class="muted" style="font-size:12.5px;margin-top:0;">Ces droits déterminent si ce compte peut modifier ou supprimer des enregistrements (SIM, CA, TDR, TDA, LP, PDV).</p>
+    <p class="muted" style="font-size:12.5px;margin-top:0;">Ces droits déterminent si ce compte peut modifier ou supprimer des enregistrements (SIM, CA, TDR, TDA, LP, Zone).</p>
     <div class="tag-row">
       <label class="perm-chip"><input type="checkbox" id="pu_modif" ${u.perms.modifier?'checked':''}> Modification</label>
       <label class="perm-chip"><input type="checkbox" id="pu_suppr" ${u.perms.supprimer?'checked':''}> Suppression</label>
@@ -3235,7 +3511,7 @@ function filterAccessTable(q){
   document.getElementById('accessTableWrap').innerHTML = accessTable(list);
 }
 
-/* Superviseur : voit uniquement les codes de son équipe (gérants + agents rattachés à lui) */
+/* Superviseur : voit uniquement les codes de son équipe (grossistes + agents rattachés à lui) */
 function renderAccessSup(){
   const main = document.getElementById('mainContent');
   const team = DB.users.filter(u=>u.superviseurId===SESSION.id || u.createdBy===SESSION.id);
@@ -3269,7 +3545,7 @@ function renderPermissions(){
 }
 
 /* =========================================================================
-   PDV — Points de vente (superviseur crée / RZ supervise)
+   Zone — Zones (superviseur crée / RZ supervise)
    ========================================================================= */
 function renderPDV(){
   const main = document.getElementById('mainContent');
@@ -3278,19 +3554,19 @@ function renderPDV(){
   const simsOnNetwork = DB.sims.filter(s=>s.pdvId).length;
   main.innerHTML = `
     <div class="topbar">
-      <div><h1>Points de vente</h1><p>Gestion des PDV rattachés à la zone.</p></div>
-      ${canCreate?`<button class="btn btn-primary btn-sm" onclick="openCreatePDV()">+ Nouveau PDV</button>`:''}
+      <div><h1>Zones</h1><p>Gestion des zones rattachées à la zone.</p></div>
+      ${canCreate?`<button class="btn btn-primary btn-sm" onclick="openCreatePDV()">+ Nouvelle Zone</button>`:''}
     </div>
     ${cardsRow([
-      ['Points de vente', DB.pdvs.length, ''],
-      ['Avec gérant assigné', withGerant, DB.pdvs.length? Math.round(withGerant/DB.pdvs.length*100)+'% de couverture':''],
-      ['Sans gérant', DB.pdvs.length-withGerant, DB.pdvs.length-withGerant>0?'à pourvoir':'réseau complet'],
+      ['Zones', DB.pdvs.length, ''],
+      ['Avec grossiste assigné', withGerant, DB.pdvs.length? Math.round(withGerant/DB.pdvs.length*100)+'% de couverture':''],
+      ['Sans grossiste', DB.pdvs.length-withGerant, DB.pdvs.length-withGerant>0?'à pourvoir':'réseau complet'],
       ['SIM sur le réseau', simsOnNetwork, ''],
     ])}
     <div class="panel">
       <div class="panel-head">
         <h2>Réseau de distribution</h2>
-        <input class="search-input" id="pdvSearch" placeholder="Nom, localisation, gérant…" oninput="filterPdvGrid()">
+        <input class="search-input" id="pdvSearch" placeholder="Nom, localisation, grossiste…" oninput="filterPdvGrid()">
       </div>
       <div class="panel-body" id="pdvGridWrap">${pdvGrid(DB.pdvs)}</div>
     </div>
@@ -3298,7 +3574,7 @@ function renderPDV(){
 }
 
 function pdvGrid(list){
-  if(list.length===0) return emptyState('Aucun point de vente','Créez votre premier PDV, ou ajustez votre recherche.');
+  if(list.length===0) return emptyState('Aucune zone','Créez votre première Zone, ou ajustez votre recherche.');
   return `<div class="pdv-grid">${list.map(p=>{
     const gerant = DB.users.find(u=>u.id===p.gerantId);
     const simCount = DB.sims.filter(s=>s.pdvId===p.id).length;
@@ -3310,7 +3586,7 @@ function pdvGrid(list){
       </div>
       <div class="pdv-card-lieu">📍 ${escapeHtml(p.lieu||'Localisation non renseignée')}</div>
       <div class="pdv-card-stats">
-        <div><span class="pdv-stat-val">${gerant? gerant.prenom+' '+gerant.nom.charAt(0)+'.' : '—'}</span><span class="pdv-stat-lab">Gérant</span></div>
+        <div><span class="pdv-stat-val">${gerant? gerant.prenom+' '+gerant.nom.charAt(0)+'.' : '—'}</span><span class="pdv-stat-lab">Grossiste</span></div>
         <div><span class="pdv-stat-val">${simCount}</span><span class="pdv-stat-lab">SIM</span></div>
         <div><span class="pdv-stat-val">${caTotal.toLocaleString('fr-FR')}</span><span class="pdv-stat-lab">GNF cumulés</span></div>
       </div>
@@ -3338,17 +3614,17 @@ function openPDVProfile(id){
   document.getElementById('modalTitle').textContent = p.nom;
   document.getElementById('modalBody').innerHTML = `
     <div class="grid-cards" style="margin-bottom:14px;">
-      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Gérant</div><div class="stat-value" style="font-size:15px;">${gerant? gerant.prenom+' '+gerant.nom : '—'}</div></div>
+      <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">Grossiste</div><div class="stat-value" style="font-size:15px;">${gerant? gerant.prenom+' '+gerant.nom : '—'}</div></div>
       <div class="stat-card" style="padding:10px 12px;"><div class="stat-label">SIM sur site</div><div class="stat-value" style="font-size:20px;">${sims.length}</div></div>
     </div>
     <table style="margin-bottom:14px;">
       <tr><td class="muted" style="width:40%;">Localisation</td><td>${escapeHtml(p.lieu||'—')}</td></tr>
-      <tr><td class="muted">Téléphone gérant</td><td>${gerant? escapeHtml(gerant.tel||'—') : '—'}</td></tr>
+      <tr><td class="muted">Téléphone grossiste</td><td>${gerant? escapeHtml(gerant.tel||'—') : '—'}</td></tr>
       <tr><td class="muted">Créé par</td><td>${creator? creator.prenom+' '+creator.nom : '—'}</td></tr>
       <tr><td class="muted">Créé le</td><td class="mono">${fmtDate(p.createdAt)}</td></tr>
     </table>
-    ${gerant ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">CA du gérant — 14 derniers jours</div>
-      <div class="chart-wrap" style="height:180px;"><canvas id="pdv_chart"></canvas></div>` : `<div class="muted" style="font-size:12.5px;">Aucun gérant assigné — aucune activité à afficher.</div>`}
+    ${gerant ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">CA du grossiste — 14 derniers jours</div>
+      <div class="chart-wrap" style="height:180px;"><canvas id="pdv_chart"></canvas></div>` : `<div class="muted" style="font-size:12.5px;">Aucun grossiste assigné — aucune activité à afficher.</div>`}
   `;
   document.getElementById('modalFoot').innerHTML = `
     <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>
@@ -3362,22 +3638,22 @@ async function deletePDV(id){
   const p = DB.pdvs.find(x=>x.id===id);
   if(!p) return;
   const nbSims = DB.sims.filter(s=>s.pdvId===id).length;
-  if(!confirm(`Supprimer le point de vente « ${p.nom} » ?${nbSims? `\n${nbSims} SIM y sont rattachées : elles seront détachées de ce PDV (leur historique est conservé).`:''}`)) return;
+  if(!confirm(`Supprimer la zone « ${p.nom} » ?${nbSims? `\n${nbSims} SIM y sont rattachées : elles seront détachées de cette Zone (leur historique est conservé).`:''}`)) return;
   DB.pdvs = DB.pdvs.filter(x=>x.id!==id);
   DB.sims.forEach(s=>{ if(s.pdvId===id) s.pdvId = null; });
   DB.users.forEach(u=>{ if(u.pdvId===id) u.pdvId = null; });
-  logAction('Suppression PDV', p.nom);
+  logAction('Suppression Zone', p.nom);
   await saveDB();
   closeModal();
-  toast('Point de vente supprimé');
+  toast('Zone supprimée');
   render();
 }
 function openCreatePDV(){
-  document.getElementById('modalTitle').textContent = 'Nouveau point de vente';
+  document.getElementById('modalTitle').textContent = 'Nouveau zone';
   document.getElementById('modalBody').innerHTML = `
-    <div class="field"><label>Nom du PDV</label><input type="text" id="pdv_nom"></div>
+    <div class="field"><label>Nom de la Zone</label><input type="text" id="pdv_nom"></div>
     <div class="field"><label>Localisation</label><input type="text" id="pdv_lieu"></div>
-    <div class="field"><label>Gérant (optionnel)</label>
+    <div class="field"><label>Grossiste (optionnel)</label>
       <select id="pdv_gerant"><option value="">— aucun —</option>
       ${DB.users.filter(u=>u.role==='gerant').map(g=>`<option value="${g.id}">${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}
       </select>
@@ -3389,23 +3665,23 @@ function openCreatePDV(){
 }
 async function saveNewPDV(){
   const nom = document.getElementById('pdv_nom').value.trim();
-  if(!nom){ toast('Le nom du PDV est requis'); return; }
+  if(!nom){ toast('Le nom de la Zone est requis'); return; }
   DB.pdvs.push({
-    id: uid('PDV'), nom, lieu: document.getElementById('pdv_lieu').value.trim(),
+    id: uid('Zone'), nom, lieu: document.getElementById('pdv_lieu').value.trim(),
     gerantId: document.getElementById('pdv_gerant').value || null,
     createdAt: nowISO(), createdBy: SESSION.id
   });
-  logAction('Création PDV', nom);
+  logAction('Création Zone', nom);
   await saveDB();
-  closeModal(); toast('Point de vente créé'); render();
+  closeModal(); toast('Zone créée'); render();
 }
 function openEditPDV(id){
   const p = DB.pdvs.find(x=>x.id===id);
-  document.getElementById('modalTitle').textContent = 'Modifier le PDV';
+  document.getElementById('modalTitle').textContent = 'Modifier le Zone';
   document.getElementById('modalBody').innerHTML = `
-    <div class="field"><label>Nom du PDV</label><input type="text" id="pdv_nom" value="${escapeHtml(p.nom)}"></div>
+    <div class="field"><label>Nom de la Zone</label><input type="text" id="pdv_nom" value="${escapeHtml(p.nom)}"></div>
     <div class="field"><label>Localisation</label><input type="text" id="pdv_lieu" value="${escapeHtml(p.lieu||'')}"></div>
-    <div class="field"><label>Gérant</label>
+    <div class="field"><label>Grossiste</label>
       <select id="pdv_gerant"><option value="">— aucun —</option>
       ${DB.users.filter(u=>u.role==='gerant').map(g=>`<option value="${g.id}" ${g.id===p.gerantId?'selected':''}>${escapeHtml(g.prenom)} ${escapeHtml(g.nom)}</option>`).join('')}
       </select>
@@ -3420,9 +3696,9 @@ async function saveEditPDV(id){
   p.nom = document.getElementById('pdv_nom').value.trim();
   p.lieu = document.getElementById('pdv_lieu').value.trim();
   p.gerantId = document.getElementById('pdv_gerant').value || null;
-  logAction('Modification PDV', p.nom);
+  logAction('Modification Zone', p.nom);
   await saveDB();
-  closeModal(); toast('PDV mis à jour'); render();
+  closeModal(); toast('Zone mise à jour'); render();
 }
 
 /* =========================================================================
@@ -3433,12 +3709,12 @@ function renderGerants(){
   const mine = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id);
   main.innerHTML = `
     <div class="topbar">
-      <div><h1>Mes gérants</h1><p>Créez et suivez les gérants sous votre supervision.</p></div>
-      <button class="btn btn-primary btn-sm" onclick="openCreateUser('gerant')">+ Nouveau gérant</button>
+      <div><h1>Mes grossistes</h1><p>Créez et suivez les grossistes sous votre supervision.</p></div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateUser('gerant')">+ Nouveau grossiste</button>
     </div>
     ${cardsRow([
-      ['Gérants', mine.length, mine.filter(g=>g.active).length+' actifs'],
-      ['Points de vente couverts', DB.pdvs.filter(p=>mine.some(g=>g.id===p.gerantId)).length, ''],
+      ['Grossistes', mine.length, mine.filter(g=>g.active).length+' actifs'],
+      ['Zones couverts', DB.pdvs.filter(p=>mine.some(g=>g.id===p.gerantId)).length, ''],
     ])}
     <div class="panel"><div class="panel-body">${userTable(mine,'gerant')}</div></div>
   `;
@@ -3475,7 +3751,7 @@ function renderLP(){
       <div class="panel-body">
         ${locked ? emptyState('Journée verrouillée','Seul le responsable de zone consulte les jours passés.') :
           rows.length===0 ? emptyState('Aucune présence','Aucune déclaration LP à cette date.') : `
-        <table><thead><tr><th>Gérant</th><th>Superviseur</th><th>Présences</th><th>Référence</th><th>Notes</th></tr></thead><tbody>
+        <table><thead><tr><th>Grossiste</th><th>Superviseur</th><th>Présences</th><th>Référence</th><th>Notes</th></tr></thead><tbody>
         ${rows.map(e=>{
           const g = DB.users.find(u=>u.id===e.gerantId);
           const sup = DB.users.find(u=>u.id===e.superviseurId);
@@ -3505,7 +3781,7 @@ function renderLP(){
     </div>` : ''}`;
 }
 function lpRowsFor(date){
-  const rows = [['Gérant','Superviseur','Présences','Référence','Notes']];
+  const rows = [['Grossiste','Superviseur','Présences','Référence','Notes']];
   DB.lp.filter(e=>e.date===date && (SESSION.role==='responsable_zone' || e.superviseurId===SESSION.id)).forEach(e=>{
     const g = DB.users.find(u=>u.id===e.gerantId);
     const sup = DB.users.find(u=>u.id===e.superviseurId);
@@ -3524,7 +3800,7 @@ function exportLPExcel(){
 }
 
 /* =========================================================================
-   TRAÇABILITÉ — affectation des PDV et parcours de chaque SIM par son ID
+   TRAÇABILITÉ — affectation des Zones et parcours de chaque SIM par son ID
    ========================================================================= */
 function renderTrace(){
   const main = document.getElementById('mainContent');
@@ -3532,7 +3808,7 @@ function renderTrace(){
   const sims = DB.sims.filter(s=> !q || s.id.toLowerCase().includes(q) || (s.iccid||'').toLowerCase().includes(q));
   main.innerHTML = `
     <div class="topbar">
-      <div><h1>🔎 Traçabilité</h1><p>Chaque SIM créée porte un ID unique : suivez son parcours complet (PDV, agents, titulaires successifs).</p></div>
+      <div><h1>🔎 Traçabilité</h1><p>Chaque SIM créée porte un ID unique : suivez son parcours complet (zones, agents, titulaires successifs).</p></div>
       <div class="panel-actions">
         <input class="search-input" placeholder="Rechercher un ID SIM ou un ICCID…" value="${escapeHtml(window._traceQuery||'')}" oninput="window._traceQuery=this.value;render();">
         <button class="btn btn-ghost btn-sm export-btn" onclick="exportTraceExcel()">⬇ Excel</button>
@@ -3540,13 +3816,13 @@ function renderTrace(){
     </div>
     ${cardsRow([
       ['SIM tracées', DB.sims.length, DB.sims.filter(s=>s.statut==='attribuee').length+' attribuées'],
-      ['PDV suivis', DB.pdvs.length, DB.pdvs.filter(p=>p.gerantId).length+' avec gérant affecté'],
+      ['Zone suivis', DB.pdvs.length, DB.pdvs.filter(p=>p.gerantId).length+' avec grossiste affecté'],
       ['Titulaires cumulés', DB.sims.reduce((a,s)=>a+(s.history||[]).filter(h=>h.event==='Attribution').length,0), 'toutes SIM confondues'],
     ])}
-    <div class="panel"><div class="panel-head"><h2>Affectation des points de vente</h2></div>
+    <div class="panel"><div class="panel-head"><h2>Affectation des zones</h2></div>
       <div class="panel-body">
-        ${DB.pdvs.length===0 ? emptyState('Aucun PDV','Chaque PDV créé apparaîtra ici avec sa date de création et son affectation.') : `
-        <table><thead><tr><th>PDV</th><th>Localisation</th><th>Créé le</th><th>Créé par</th><th>Gérant affecté</th><th>SIM rattachées</th></tr></thead><tbody>
+        ${DB.pdvs.length===0 ? emptyState('Aucune Zone','Chaque Zone créée apparaîtra ici avec sa date de création et son affectation.') : `
+        <table><thead><tr><th>Zone</th><th>Localisation</th><th>Créé le</th><th>Créé par</th><th>Grossiste affecté</th><th>SIM rattachées</th></tr></thead><tbody>
         ${DB.pdvs.map(p=>{
           const createur = DB.users.find(u=>u.id===p.createdBy);
           const gerant = DB.users.find(u=>u.id===p.gerantId);
@@ -3566,7 +3842,7 @@ function renderTrace(){
     <div class="panel"><div class="panel-head"><h2>Parcours des SIM${q? ' — résultats pour « '+escapeHtml(window._traceQuery)+' »':''}</h2></div>
       <div class="panel-body">
         ${sims.length===0 ? emptyState('Aucune SIM','Aucune SIM ne correspond à cette recherche.') : `
-        <table><thead><tr><th>ID de traçage</th><th>ICCID</th><th>Statut</th><th>PDV</th><th>Agent</th><th>Titulaires</th><th>Retraits</th><th></th></tr></thead><tbody>
+        <table><thead><tr><th>ID de traçage</th><th>ICCID</th><th>Statut</th><th>Zone</th><th>Agent</th><th>Titulaires</th><th>Retraits</th><th></th></tr></thead><tbody>
         ${sims.map(s=>{
           const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
           const agent = DB.users.find(u=>u.id===s.agentId);
@@ -3588,7 +3864,7 @@ function renderTrace(){
     </div>`;
 }
 function exportTraceExcel(){
-  const rows = [['ID de traçage','ICCID','Statut','PDV','Agent','Titulaires','Retraits']];
+  const rows = [['ID de traçage','ICCID','Statut','Zone','Agent','Titulaires','Retraits']];
   DB.sims.forEach(s=>{
     const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
     const agent = DB.users.find(u=>u.id===s.agentId);
@@ -3600,7 +3876,234 @@ function exportTraceExcel(){
 }
 
 /* =========================================================================
-   MES AGENTS (vue du gérant : agents affiliés directement ou via ses PDV)
+   RÉALISATION DES AGENTS — déclaration journalière, addition mensuelle
+   ========================================================================= */
+function renderRealisation(){
+  const main = document.getElementById('mainContent');
+  const ym = todayStr().slice(0,7);
+  const moisLabel = new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const mine = DB.realisations.filter(r=>r.agentId===SESSION.id).sort((a,b)=> b.date.localeCompare(a.date));
+  const total = computeRealisationMois(SESSION.id, ym);
+  const objectif = getObjectifAgent(SESSION.id, ym);
+  const pct = objectif ? Math.min(100, Math.round(total/objectif*100)) : 0;
+  main.innerHTML = `
+    <div class="topbar"><div><h1>📈 Ma réalisation</h1><p>Déclarez votre réalisation du jour — elle s'additionne automatiquement à votre réalisation du mois.</p></div>
+      <button class="btn btn-primary btn-sm" onclick="openDeclareRealisation()">+ Déclarer aujourd'hui</button>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Réalisation de ${moisLabel}</h2></div>
+      <div class="panel-body">
+        <div class="obj-row"><span>Réalisé ce mois-ci</span><b>${total.toLocaleString('fr-FR')} GNF</b></div>
+        ${objectif ? `<div class="obj-row"><span>Objectif — CA prévu</span><b>${objectif.toLocaleString('fr-FR')} GNF</b></div>
+        <div class="progress-track"><div class="progress-fill ${pct>=100?'over':''}" style="width:${pct}%;"></div></div>`
+        : `<div class="muted" style="font-size:12.5px;margin-top:6px;">Aucun objectif défini par votre superviseur pour ce mois.</div>`}
+        <div class="chart-wrap" style="margin-top:16px;"><canvas id="real_trend"></canvas></div>
+      </div>
+    </div>
+    <div class="panel"><div class="panel-head"><h2>Historique de mes déclarations</h2></div>
+      <div class="panel-body">
+        ${mine.length===0 ? emptyState('Aucune déclaration','Déclarez votre première réalisation.') : `
+        <table><thead><tr><th>Date</th><th>Montant</th><th>Zone servie</th><th>Notes</th><th></th></tr></thead><tbody>
+        ${mine.map(r=>{
+          const pdv = DB.pdvs.find(p=>p.id===r.pdvId);
+          return `<tr>
+            <td class="mono">${r.date}</td>
+            <td class="mono">${Number(r.montant||0).toLocaleString('fr-FR')} GNF</td>
+            <td class="muted">${pdv?escapeHtml(pdv.nom):'—'}</td>
+            <td class="muted">${escapeHtml(r.notes||'—')}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteRealisation('${r.id}')">🗑</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>`}
+      </div>
+    </div>`;
+  const trend = realisationSeries(SESSION.id, 14);
+  drawChart('real_trend','bar', trend.labels, trend.data, '#8E44AD', 'Réalisation (GNF)');
+}
+function openDeclareRealisation(){
+  document.getElementById('modalTitle').textContent = 'Déclarer ma réalisation du jour';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="field"><label>Date</label><input type="date" id="rl_date" value="${todayStr()}"></div>
+    <div class="field"><label>Montant réalisé (GNF)</label><input type="number" id="rl_montant" placeholder="0"></div>
+    <div class="field"><label>Zone servie</label><select id="rl_pdv"><option value="">— aucune —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>
+    <div class="field"><label>Notes</label><input type="text" id="rl_notes"></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveRealisation()">Enregistrer</button>`;
+  openModal();
+}
+async function saveRealisation(){
+  const date = document.getElementById('rl_date').value || todayStr();
+  const montant = document.getElementById('rl_montant').value;
+  const pdvId = document.getElementById('rl_pdv').value || null;
+  const notes = document.getElementById('rl_notes').value.trim();
+  if(!montant){ toast('Indiquez le montant réalisé'); return; }
+  DB.realisations.push({ id: uid('RL'), agentId: SESSION.id, superviseurId: SESSION.superviseurId||null, date, montant:Number(montant), pdvId, notes });
+  logAction('Réalisation déclarée', `${montant} GNF le ${date}`);
+  await saveDB();
+  closeModal(); toast('Réalisation enregistrée — ajoutée à votre total du mois'); render();
+}
+async function deleteRealisation(id){
+  if(!confirm('Supprimer cette déclaration de réalisation ?')) return;
+  DB.realisations = DB.realisations.filter(r=>r.id!==id);
+  logAction('Réalisation supprimée', id);
+  await saveDB();
+  toast('Déclaration supprimée'); render();
+}
+
+/* =========================================================================
+   AGENTS & CLIENTS — création (superviseur) et vue globale (RZ)
+   ========================================================================= */
+function renderAgentsClients(){
+  const main = document.getElementById('mainContent');
+  const role = SESSION.role;
+  const tab = window._acTab || 'agents';
+  main.innerHTML = `
+    <div class="topbar"><div><h1>Agents & Clients</h1><p>${role==='responsable_zone' ? 'Vue globale : tous les agents des superviseurs et leurs clients.' : 'Créez et suivez vos agents et vos clients.'}</p></div></div>
+    <div class="tabgroup">
+      <div class="tabgroup-head"><h3>Agents & Clients</h3></div>
+      <div class="tabgroup-body">
+        <div class="tabs">
+          <button class="tab-btn ${tab==='agents'?'active':''}" data-actab="agents" onclick="switchACTab('agents')">Agents</button>
+          <button class="tab-btn ${tab==='clients'?'active':''}" data-actab="clients" onclick="switchACTab('clients')">Clients</button>
+        </div>
+        <div id="acTabWrap">${tab==='agents' ? acAgentsView() : acClientsView()}</div>
+      </div>
+    </div>`;
+}
+function switchACTab(tab){
+  window._acTab = tab;
+  document.querySelectorAll('[data-actab]').forEach(b=>b.classList.toggle('active', b.dataset.actab===tab));
+  document.getElementById('acTabWrap').innerHTML = tab==='agents' ? acAgentsView() : acClientsView();
+}
+function acAgentsView(){
+  const role = SESSION.role;
+  const agents = role==='responsable_zone'
+    ? DB.users.filter(u=>u.role==='agent')
+    : DB.users.filter(u=>u.role==='agent' && u.superviseurId===SESSION.id);
+  const ym = todayStr().slice(0,7);
+  return `
+    ${role==='superviseur' ? `<div class="tag-row" style="margin-bottom:14px;"><button class="btn btn-primary btn-sm" onclick="openCreateUser('agent')">+ Nouvel agent</button></div>` : ''}
+    ${agents.length===0 ? emptyState('Aucun agent', role==='superviseur'?'Créez votre premier agent.':'Aucun agent créé pour l\'instant.') : `
+    <table><thead><tr>
+      <th>N°</th><th>Nom et prénom</th>${role==='responsable_zone'?'<th>Superviseur</th>':''}<th>Zones servies (mois)</th><th>Objectif / CA prévu</th><th>Réalisation mensuelle</th><th></th>
+    </tr></thead><tbody>
+    ${agents.map((a,i)=>{
+      const sup = DB.users.find(u=>u.id===a.superviseurId);
+      const nbZ = nbZonesServiesMois(a.id, ym);
+      const obj = getObjectifAgent(a.id, ym);
+      const real = computeRealisationMois(a.id, ym);
+      return `<tr>
+        <td class="mono">${i+1}</td>
+        <td><div class="name-cell"><img class="avatar-sm" src="${a.photo || defaultAvatar()}">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</div></td>
+        ${role==='responsable_zone'?`<td class="muted">${sup?escapeHtml(sup.prenom+' '+sup.nom):'—'}</td>`:''}
+        <td class="mono">${nbZ}</td>
+        <td class="mono">${obj? obj.toLocaleString('fr-FR')+' GNF' : '<span class="badge badge-warn">Non défini</span>'}</td>
+        <td class="mono"><b>${real.toLocaleString('fr-FR')} GNF</b></td>
+        <td>${role==='superviseur' ? `<button class="btn btn-ghost btn-sm" onclick="openAgentObjModal('${a.id}')">🎯 Objectif</button>` : ''}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`}
+  `;
+}
+function acClientsView(){
+  const role = SESSION.role;
+  const clients = role==='responsable_zone'
+    ? DB.clients
+    : DB.clients.filter(c=>c.superviseurId===SESSION.id);
+  const ym = todayStr().slice(0,7);
+  return `
+    ${role==='superviseur' ? `<div class="tag-row" style="margin-bottom:14px;"><button class="btn btn-primary btn-sm" onclick="openCreateClient()">+ Nouveau client</button></div>` : ''}
+    ${clients.length===0 ? emptyState('Aucun client', role==='superviseur'?'Ajoutez votre premier client.':'Aucun client pour l\'instant.') : `
+    <table><thead><tr><th>N°</th><th>Nom et prénom</th><th>Téléphone</th><th>Agent affilié</th>${role==='responsable_zone'?'<th>Superviseur</th>':''}<th>Objectif (CA prévu)</th><th></th></tr></thead><tbody>
+    ${clients.map((c,i)=>{
+      const agent = DB.users.find(u=>u.id===c.agentId);
+      const sup = DB.users.find(u=>u.id===c.superviseurId);
+      const obj = getObjectifClient(c.id, ym);
+      return `<tr>
+        <td class="mono">${i+1}</td>
+        <td>${escapeHtml(c.prenom+' '+c.nom)}</td>
+        <td class="mono">${escapeHtml(c.tel||'—')}</td>
+        <td class="muted">${agent?escapeHtml(agent.prenom+' '+agent.nom):'—'}</td>
+        ${role==='responsable_zone'?`<td class="muted">${sup?escapeHtml(sup.prenom+' '+sup.nom):'—'}</td>`:''}
+        <td class="mono">${obj? obj.toLocaleString('fr-FR')+' GNF':'<span class="badge badge-warn">Non défini</span>'}</td>
+        <td>${role==='superviseur' ? `<button class="btn btn-ghost btn-sm" onclick="openClientObjModal('${c.id}')">🎯 Objectif</button> <button class="btn btn-danger btn-sm" onclick="deleteClient('${c.id}')">🗑</button>` : ''}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`}
+  `;
+}
+function openCreateClient(){
+  const myAgents = DB.users.filter(u=>u.role==='agent' && u.superviseurId===SESSION.id);
+  document.getElementById('modalTitle').textContent = 'Nouveau client';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="grid-2">
+      <div class="field"><label>Prénom</label><input type="text" id="cl_prenom"></div>
+      <div class="field"><label>Nom</label><input type="text" id="cl_nom"></div>
+    </div>
+    <div class="field"><label>Téléphone</label><input type="text" id="cl_tel"></div>
+    <div class="field"><label>Agent affilié</label><select id="cl_agent"><option value="">— aucun —</option>${myAgents.map(a=>`<option value="${a.id}">${escapeHtml(a.prenom+' '+a.nom)}</option>`).join('')}</select></div>
+    <div class="field"><label>Notes</label><input type="text" id="cl_notes"></div>
+  `;
+  document.getElementById('modalFoot').innerHTML = `
+    <button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-primary btn-sm" onclick="saveNewClient()">Créer</button>`;
+  openModal();
+}
+async function saveNewClient(){
+  const prenom = document.getElementById('cl_prenom').value.trim();
+  const nom = document.getElementById('cl_nom').value.trim();
+  const tel = document.getElementById('cl_tel').value.trim();
+  const agentId = document.getElementById('cl_agent').value || null;
+  const notes = document.getElementById('cl_notes').value.trim();
+  if(!prenom || !nom){ toast('Prénom et nom requis'); return; }
+  DB.clients.push({ id: uid('CL'), prenom, nom, tel, agentId, superviseurId: SESSION.id, notes, createdAt: nowISO(), createdBy: SESSION.id, active:true });
+  logAction('Client créé', prenom+' '+nom);
+  await saveDB();
+  closeModal(); toast('Client créé'); render();
+}
+async function deleteClient(id){
+  if(!confirm('Supprimer ce client ?')) return;
+  DB.clients = DB.clients.filter(c=>c.id!==id);
+  logAction('Client supprimé', id);
+  await saveDB();
+  toast('Client supprimé'); render();
+}
+function openAgentObjModal(agentId){
+  const a = DB.users.find(u=>u.id===agentId);
+  const ym = todayStr().slice(0,7);
+  document.getElementById('modalTitle').textContent = `Objectif — ${a.prenom} ${a.nom}`;
+  document.getElementById('modalBody').innerHTML = `<div class="field"><label>CA prévu du mois (GNF)</label><input type="number" id="oAgent_val" value="${getObjectifAgent(agentId,ym)||''}" placeholder="Objectif en GNF"></div>`;
+  document.getElementById('modalFoot').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button><button class="btn btn-primary btn-sm" onclick="saveAgentObjectif('${agentId}')">Enregistrer</button>`;
+  openModal();
+}
+async function saveAgentObjectif(agentId){
+  const ym = todayStr().slice(0,7);
+  const val = document.getElementById('oAgent_val').value;
+  DB.objectifsAgent[objKeyAgent(agentId,ym)] = val? Number(val):0;
+  logAction('Objectif agent défini', agentId+' — '+ym);
+  await saveDB();
+  closeModal(); toast('Objectif enregistré'); render();
+}
+function openClientObjModal(clientId){
+  const c = DB.clients.find(x=>x.id===clientId);
+  const ym = todayStr().slice(0,7);
+  document.getElementById('modalTitle').textContent = `Objectif — ${c.prenom} ${c.nom}`;
+  document.getElementById('modalBody').innerHTML = `<div class="field"><label>CA prévu du mois (GNF)</label><input type="number" id="oClient_val" value="${getObjectifClient(clientId,ym)||''}" placeholder="Objectif en GNF"></div>`;
+  document.getElementById('modalFoot').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Annuler</button><button class="btn btn-primary btn-sm" onclick="saveClientObjectif('${clientId}')">Enregistrer</button>`;
+  openModal();
+}
+async function saveClientObjectif(clientId){
+  const ym = todayStr().slice(0,7);
+  const val = document.getElementById('oClient_val').value;
+  DB.objectifsClient[objKeyClient(clientId,ym)] = val? Number(val):0;
+  logAction('Objectif client défini', clientId+' — '+ym);
+  await saveDB();
+  closeModal(); toast('Objectif enregistré'); render();
+}
+
+/* =========================================================================
+   MES AGENTS (vue du grossiste : agents affiliés directement ou via ses Zone)
    ========================================================================= */
 function renderMesAgents(){
   const main = document.getElementById('mainContent');
@@ -3610,7 +4113,7 @@ function renderMesAgents(){
     DB.sims.some(s=> s.agentId===u.id && myPdvIds.includes(s.pdvId))
   ));
   main.innerHTML = `
-    <div class="topbar"><div><h1>Mes agents</h1><p>Agents affiliés à votre gestion (directement ou via vos points de vente).</p></div></div>
+    <div class="topbar"><div><h1>Mes agents</h1><p>Agents affiliés à votre gestion (directement ou via vos zones).</p></div></div>
     ${cardsRow([
       ['Agents affiliés', mine.length, mine.filter(a=>a.active).length+' actifs'],
       ['SIM en charge', DB.sims.filter(s=> mine.some(a=>a.id===s.agentId) && s.statut==='attribuee').length, ''],
@@ -3710,7 +4213,7 @@ function renderSims(){
             <option value="stock">En stock</option>
           </select>
           ${SESSION.role!=='agent' ? `<select id="simPdvFilter" onchange="filterSimsTable()" style="width:auto;">
-            <option value="">Tous les PDV</option>
+            <option value="">Tous les Zone</option>
             ${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}
           </select>` : ''}
         </div>
@@ -3738,7 +4241,7 @@ function filterSimsTable(){
 }
 
 function exportSimsExcel(){
-  const rows = [['ICCID','Statut','Client actuel','Téléphone','Agent','PDV','Historique']];
+  const rows = [['ICCID','Statut','Client actuel','Téléphone','Agent','Zone','Historique']];
   DB.sims.forEach(s=>{
     const agent = DB.users.find(u=>u.id===s.agentId);
     const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
@@ -3749,7 +4252,7 @@ function exportSimsExcel(){
 }
 function simsTable(list){
   if(list.length===0) return emptyState('Aucune SIM enregistrée','Déployez une SIM pour commencer le suivi, ou ajustez vos filtres.');
-  return `<table><thead><tr><th>ICCID</th><th>Statut</th><th>Client actuel</th><th>Agent en charge</th><th>PDV</th><th>Titulaires</th><th>Actions</th></tr></thead><tbody>
+  return `<table><thead><tr><th>ICCID</th><th>Statut</th><th>Client actuel</th><th>Agent en charge</th><th>Zone</th><th>Titulaires</th><th>Actions</th></tr></thead><tbody>
   ${list.map(s=>{
     const agent = DB.users.find(u=>u.id===s.agentId);
     const pdv = DB.pdvs.find(p=>p.id===s.pdvId);
@@ -3777,7 +4280,7 @@ function openDeploySim(){
   document.getElementById('modalTitle').textContent = 'Déployer une SIM';
   document.getElementById('modalBody').innerHTML = `
     <div class="field"><label>ICCID / numéro de SIM</label><input type="text" id="sim_iccid" placeholder="8922..."></div>
-    <div class="field"><label>Point de vente</label>
+    <div class="field"><label>Zone</label>
       <select id="sim_pdv"><option value="">— aucun —</option>${DB.pdvs.map(p=>`<option value="${p.id}">${escapeHtml(p.nom)}</option>`).join('')}</select></div>
     <div class="field"><label>Agent destinataire</label>
       <select id="sim_agent"><option value="">— aucun (stock) —</option>${DB.users.filter(u=>u.role==='agent').map(a=>`<option value="${a.id}">${escapeHtml(a.prenom)} ${escapeHtml(a.nom)}</option>`).join('')}</select></div>
@@ -3885,7 +4388,7 @@ function openSimHistory(id){
 }
 
 /* =========================================================================
-   CA — Chiffre d'affaires (déclaré par gérant, visible superviseur (jour) / RZ (tout))
+   CA — Chiffre d'affaires (déclaré par grossiste, visible superviseur (jour) / RZ (tout))
    ========================================================================= */
 function renderCA(){
   const main = document.getElementById('mainContent');
@@ -3908,7 +4411,7 @@ function renderCA(){
     drawChart('chart_ca_trend','bar', series.labels, series.data, '#FF6600', 'CA (GNF)');
     return;
   }
-  renderMoveTable('ca','Chiffre d\'affaires','Suivi des déclarations de CA des gérants.');
+  renderMoveTable('ca','Chiffre d\'affaires','Suivi des déclarations de CA des grossistes.');
 }
 
 function renderMoveTable(type, title, sub){
@@ -3933,7 +4436,7 @@ function renderMoveTable(type, title, sub){
     lockBanner = `<div class="lock-banner"><span class="banner-text">🔒 Vous ne voyez que les opérations du jour. L'historique passe sous le contrôle exclusif du responsable de zone après minuit.</span>${dayArcSVG(38)}</div>`;
     const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id).map(g=>g.id);
     const dist = totalsByGerant(type, myGerants, isToday);
-    chartsHtml = `<div class="panel"><div class="panel-head"><h2>Répartition du jour par gérant</h2>
+    chartsHtml = `<div class="panel"><div class="panel-head"><h2>Répartition du jour par grossiste</h2>
       <button class="btn btn-ghost btn-sm" onclick="openObjectifsModal('${type}')">🎯 Objectifs</button></div>
       <div class="panel-body"><div class="chart-wrap">${dist.data.every(v=>v===0)?emptyState('Rien à afficher',"Aucune déclaration aujourd'hui."):'<canvas id="chart_'+type+'_dist"></canvas>'}</div></div></div>`;
     afterRender = ()=> { if(!dist.data.every(v=>v===0)) drawChart(`chart_${type}_dist`,'bar', dist.labels, dist.data, '#D14E00', `${typeLabel(type)} du jour`); };
@@ -3944,9 +4447,9 @@ function renderMoveTable(type, title, sub){
     chartsHtml = `<div class="grid-2">
       <div class="panel"><div class="panel-head"><h2>Tendance — 14 derniers jours</h2></div>
         <div class="panel-body"><div class="chart-wrap"><canvas id="chart_${type}_trend"></canvas></div></div></div>
-      <div class="panel"><div class="panel-head"><h2>Total par gérant</h2>
+      <div class="panel"><div class="panel-head"><h2>Total par grossiste</h2>
         <button class="btn btn-ghost btn-sm" onclick="openObjectifsModal('${type}')">🎯 Objectifs</button></div>
-        <div class="panel-body"><div class="chart-wrap">${dist.data.length===0?emptyState('Aucun gérant','—'):'<canvas id="chart_'+type+'_dist"></canvas>'}</div></div></div>
+        <div class="panel-body"><div class="chart-wrap">${dist.data.length===0?emptyState('Aucun grossiste','—'):'<canvas id="chart_'+type+'_dist"></canvas>'}</div></div></div>
     </div>`;
     afterRender = ()=>{
       drawChart(`chart_${type}_trend`,'line', trend.labels, trend.data, '#FF6600', `${typeLabel(type)} (${unitFor(type)})`);
@@ -3969,7 +4472,7 @@ function renderMoveTable(type, title, sub){
 }
 function exportMoveExcel(type, title){
   const colLabel = type==='ca' ? 'Montant (GNF)' : type==='lp' ? 'Présences' : 'Taux (%)';
-  const rows = [['Date','Gérant','Superviseur',colLabel,'Référence','Notes']];
+  const rows = [['Date','Grossiste','Superviseur',colLabel,'Référence','Notes']];
   DB[type].forEach(e=>{
     const gerant = DB.users.find(u=>u.id===e.gerantId);
     const sup = DB.users.find(u=>u.id===e.superviseurId);
@@ -3982,7 +4485,7 @@ function moveTable(list, type){
   if(list.length===0) return emptyState('Aucune donnée','Aucune déclaration enregistrée pour le moment.');
   list = [...list].sort((a,b)=> new Date(b.date)-new Date(a.date));
   const colLabel = type==='ca' ? 'Montant' : type==='lp' ? 'Présences' : 'Taux';
-  return `<table><thead><tr><th>Date</th><th>Gérant</th><th>Superviseur</th><th>${colLabel}</th><th>Référence</th><th>Notes</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
+  return `<table><thead><tr><th>Date</th><th>Grossiste</th><th>Superviseur</th><th>${colLabel}</th><th>Référence</th><th>Notes</th>${SESSION.role==='responsable_zone'?'<th></th>':''}</tr></thead><tbody>
   ${list.map(e=>{
     const gerant = DB.users.find(u=>u.id===e.gerantId);
     const sup = DB.users.find(u=>u.id===e.superviseurId);
@@ -4046,7 +4549,7 @@ function renderDaily(){
     const myGerants = DB.users.filter(u=>u.role==='gerant' && u.superviseurId===SESSION.id).map(g=>g.id);
     const logs = DB.activityLog.filter(l=> isToday(l.ts) && myGerants.includes(l.userId));
     main.innerHTML = `
-      <div class="topbar"><div><h1>Mouvements des gérants — aujourd'hui</h1><p>Suivi journalier uniquement. L'historique bascule au responsable de zone après la journée.</p></div></div>
+      <div class="topbar"><div><h1>Mouvements des grossistes — aujourd'hui</h1><p>Suivi journalier uniquement. L'historique bascule au responsable de zone après la journée.</p></div></div>
       <div class="lock-banner"><span class="banner-text">🔒 Cette vue se réinitialise chaque jour à minuit.</span>${dayArcSVG(38)}</div>
       <div class="panel"><div class="panel-body">${logTable(logs)}</div></div>
     `;
@@ -4055,7 +4558,7 @@ function renderDaily(){
 
   // Responsable de zone : filtre journalier + mensuel
   main.innerHTML = `
-    <div class="topbar"><div><h1>Activité journalière des gérants</h1><p>Vue complète : jour, mois, ou historique intégral — à des fins de rapport et de vérification.</p></div></div>
+    <div class="topbar"><div><h1>Activité journalière des grossistes</h1><p>Vue complète : jour, mois, ou historique intégral — à des fins de rapport et de vérification.</p></div></div>
     <div class="tabgroup">
       <div class="tabgroup-head"><h3>Filtrer la période</h3></div>
       <div class="tabgroup-body">
@@ -4086,7 +4589,7 @@ function switchDailyTab(mode){
 function logTable(logs){
   logs = [...logs].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
   if(logs.length===0) return emptyState('Aucun mouvement','Rien à afficher pour cette période.');
-  return `<table><thead><tr><th>Date/heure</th><th>Gérant</th><th>Action</th><th>Détail</th></tr></thead><tbody>
+  return `<table><thead><tr><th>Date/heure</th><th>Grossiste</th><th>Action</th><th>Détail</th></tr></thead><tbody>
   ${logs.map(l=>`<tr><td class="mono">${fmtDate(l.ts)}</td><td>${escapeHtml(l.userNom)}</td><td>${escapeHtml(l.action)}</td><td class="muted">${escapeHtml(l.details)}</td></tr>`).join('')}
   </tbody></table>`;
 }
@@ -4279,12 +4782,15 @@ function openReportChart(id){
   const gerantIds = DB.users.filter(u=>u.role==='gerant').map(g=>g.id);
   const dist = totalsByGerant('ca', gerantIds, d=> d>=start && d<=end);
   const total = r.stats.superviseurs+r.stats.gerants+r.stats.agents;
+  const agentReal = DB.users.filter(u=>u.role==='agent').map(a=>({
+    a, total: DB.realisations.filter(e=>e.agentId===a.id && e.date>=start && e.date<=end).reduce((s,e)=>s+Number(e.montant||0),0)
+  })).filter(x=>x.total>0).sort((x,y)=>y.total-x.total).slice(0,8);
   document.getElementById('modalTitle').textContent = `Rapport ${r.type} — ${periodeLabel(r.periode)}`;
   document.getElementById('modalBody').innerHTML = `
     ${gaugeRow([
       { label:'CA (part du total)', pct: r.stats.caTotal>0?100:0, color:'#FF6600' },
       { label:'SIM attribuées', pct: r.stats.simsTotal>0 ? Math.min(100, r.stats.simsTotal/Math.max(1,DB.sims.length)*100) : 0, color:'#1F8A4C' },
-      { label:'PDV avec gérant', pct: DB.pdvs.length? DB.pdvs.filter(p=>p.gerantId).length/DB.pdvs.length*100 : 0, color:'#8E44AD' },
+      { label:'Zone avec grossiste', pct: DB.pdvs.length? DB.pdvs.filter(p=>p.gerantId).length/DB.pdvs.length*100 : 0, color:'#8E44AD' },
     ])}
     <div class="grid-2" style="margin-top:10px;">
       <div>
@@ -4292,13 +4798,20 @@ function openReportChart(id){
         <div class="chart-wrap" style="height:180px;">${total===0? emptyState('Aucune donnée','—') : '<canvas id="chart_report_roles"></canvas>'}</div>
       </div>
       <div>
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">CA par gérant — ${escapeHtml(periodeLabel(r.periode))}</div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">CA par grossiste — ${escapeHtml(periodeLabel(r.periode))}</div>
         <div class="chart-wrap" style="height:180px;">${dist.data.every(v=>v===0) ? emptyState('Aucune donnée', 'Aucun CA déclaré.') : '<canvas id="chart_report_dist"></canvas>'}</div>
       </div>
+    </div>
+    <div style="margin-top:16px;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">Réalisation des agents — ${escapeHtml(periodeLabel(r.periode))} (total : ${(r.stats.realisationTotal||0).toLocaleString('fr-FR')} GNF)</div>
+      ${agentReal.length===0 ? emptyState('Aucune réalisation','Aucune réalisation déclarée sur cette période.') : `
+      <table><thead><tr><th>Agent</th><th>Réalisation</th></tr></thead><tbody>
+      ${agentReal.map(x=>`<tr><td>${escapeHtml(x.a.prenom+' '+x.a.nom)}</td><td class="mono"><b>${x.total.toLocaleString('fr-FR')} GNF</b></td></tr>`).join('')}
+      </tbody></table>`}
     </div>`;
   document.getElementById('modalFoot').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>`;
   openModal();
-  if(total>0) drawDoughnut('chart_report_roles', ['Superviseurs','Gérants','Agents'], [r.stats.superviseurs,r.stats.gerants,r.stats.agents], ['#E8A200','#1F8A4C','#FF6600'], 'Personnel');
+  if(total>0) drawDoughnut('chart_report_roles', ['Superviseurs','Grossistes','Agents'], [r.stats.superviseurs,r.stats.gerants,r.stats.agents], ['#E8A200','#1F8A4C','#FF6600'], 'Personnel');
   if(!dist.data.every(v=>v===0)) drawChart('chart_report_dist','bar', dist.labels, dist.data, '#FF6600', 'CA (GNF)');
 }
 function reportRows(r){
@@ -4310,11 +4823,12 @@ function reportRows(r){
     ['Déclarations TDR (taux de rupture)', r.stats.tdrTotal],
     ['Déclarations TDA (taux d\'inactivité)', r.stats.tdaTotal],
     ['Total présences (LP)', r.stats.lpTotal],
+    ['Réalisation totale des agents (GNF)', r.stats.realisationTotal||0],
     ['SIM attribuées', r.stats.simsTotal],
     ['Superviseurs', r.stats.superviseurs],
-    ['Gérants', r.stats.gerants],
+    ['Grossistes', r.stats.gerants],
     ['Agents', r.stats.agents],
-    ['Points de vente', r.stats.pdvs],
+    ['Zones', r.stats.pdvs],
   ];
 }
 function exportReportExcel(id){
@@ -4358,6 +4872,7 @@ function computeStatsForPeriod(periode){
     tdrTotal: DB.tdr.filter(e=>inRange(e.date)).length,
     tdaTotal: DB.tda.filter(e=>inRange(e.date)).length,
     lpTotal: DB.lp.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
+    realisationTotal: DB.realisations.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
     simsTotal: DB.sims.filter(s=>s.statut==='attribuee').length,
     superviseurs: DB.users.filter(u=>u.role==='superviseur').length,
     gerants: DB.users.filter(u=>u.role==='gerant').length,
