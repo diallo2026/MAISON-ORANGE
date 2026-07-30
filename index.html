@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Maison Orange — Gestion</title>
+<title>Eight Huit — Gestion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -111,11 +111,51 @@
   .app-version{text-align:center;font-size:10.5px;color:var(--ink-soft);margin-top:14px;letter-spacing:.03em;}
   .btn-finger{width:100%;background:linear-gradient(135deg,#1F8A4C,#146034);color:#fff;font-size:15px;padding:13px;}
   .btn-finger:hover{filter:brightness(1.1);}
-  /* Panneaux repliables : cliquer sur le titre replie/déplie */
-  .panel-head h2{cursor:pointer;user-select:none;}
-  .panel-head h2::before{content:'▾';display:inline-block;margin-right:7px;font-size:11px;color:var(--ink-soft);transition:.15s;}
-  .panel.folded .panel-head h2::before{transform:rotate(-90deg);}
+  .pt-photo-toggle{margin:4px 0 10px;}
+  .pt-photo-toggle .btn{width:100%;}
+  .pt-sort-row{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;}
+  .pt-sort-row select{flex:1;padding:6px 8px;border:1.5px solid var(--line);border-radius:5px;font-size:12px;background:#fff;}
+  .pt-photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:10px;max-height:320px;overflow-y:auto;padding:2px;margin-bottom:12px;}
+  .pt-photo-tile{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;border:none;background:none;padding:6px 2px;border-radius:8px;transition:.15s;}
+  .pt-photo-tile:hover{background:#F2F9F4;}
+  .pt-photo-tile:active{transform:scale(.94);}
+  .pt-photo-tile img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:2.5px solid var(--line);}
+  .pt-photo-tile.present img{border-color:#1F8A4C;}
+  .pt-photo-tile.sorti img{border-color:#8A8A93;opacity:.55;}
+  .pt-photo-tile .pt-tile-name{font-size:9.5px;text-align:center;line-height:1.2;color:var(--ink);max-width:74px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pt-photo-tile .pt-tile-dot{width:6px;height:6px;border-radius:50%;background:#D1CDC5;margin-top:-2px;}
+  .pt-photo-tile.present .pt-tile-dot{background:#1F8A4C;}
+  .pt-photo-tile.sorti .pt-tile-dot{background:#8A8A93;}
+  /* Panneaux repliables : bouton ▾ sur chaque panneau + tête cliquable */
+  .panel-head{cursor:pointer;user-select:none;}
+  .fold-btn{
+    background:var(--btn-bg,var(--orange));color:#fff;border:none;border-radius:5px;
+    width:26px;height:26px;font-size:12px;cursor:pointer;flex-shrink:0;line-height:1;
+    display:inline-flex;align-items:center;justify-content:center;margin-left:auto;
+  }
+  .fold-btn:hover{background:var(--btn-bg-dark,var(--orange-dark));}
   .panel.folded .panel-body{display:none;}
+  .panel.folded{padding-bottom:0;}
+  .panel.folded .panel-head{border-bottom:none;}
+  /* Groupes d'onglets (sections à sous-onglets) — repliables comme les panneaux */
+  .tabgroup{border:1px solid var(--line);border-radius:8px;margin-bottom:16px;overflow:hidden;background:#FCFBFA;}
+  .tabgroup-head{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:var(--panelhead-bg,#F7F5F2);cursor:pointer;}
+  .tabgroup-head h3{margin:0;font-family:var(--disp);font-size:14.5px;color:var(--panelhead-text,var(--ink));}
+  .tabgroup-body{padding:14px 16px 16px;}
+  .tabgroup.folded .tabgroup-body{display:none;}
+  .tabgroup.folded{padding-bottom:0;}
+  .tabgroup.folded .tabgroup-head{border-bottom:none;}
+  /* Visuels type infographie : jauges circulaires colorées */
+  .gauge-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:14px;padding:6px 2px;}
+  .gauge-item{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .gauge-svg{width:76px;height:76px;}
+  .gauge-label{font-size:10.5px;color:var(--ink-soft);text-align:center;font-weight:600;}
+  .minibar-row{display:flex;align-items:flex-end;gap:14px;padding:10px 4px 2px;justify-content:space-around;}
+  .minibar-item{display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .minibar-track{width:26px;height:80px;display:flex;align-items:flex-end;background:#F4F1EB;border-radius:6px;overflow:hidden;}
+  .minibar-fill{width:100%;border-radius:6px 6px 0 0;transition:height .3s;}
+  .minibar-val{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink);}
+  .minibar-label{font-size:9.5px;color:var(--ink-soft);text-align:center;max-width:60px;}
 
   /* ---------- APP SHELL ---------- */
   #app{display:none;min-height:100vh;grid-template-columns:230px 1fr;}
@@ -185,7 +225,6 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:20px;}
   .panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:8px;background:var(--panelhead-bg,transparent);}
   .panel-head h2{font-family:var(--disp);font-size:16px;margin:0;color:var(--panelhead-text,var(--ink));}
-  .panel-head h2::before{color:var(--panelhead-text,var(--ink-soft));}
   .panel-body{padding:16px 18px;}
   .panel-actions{display:flex;gap:8px;flex-wrap:wrap;}
 
@@ -317,7 +356,7 @@
       <div class="login-brand-line"><span class="eh-red">EIGHT</span> <span class="eh-yellow">HUIT</span> <span class="eh-green">Technology</span></div>
     </div>
     <div class="brand" style="justify-content:center;">
-      <div class="brand-name" id="loginBrandName">Maison Orange</div>
+      <div class="brand-name" id="loginBrandName">Eight Huit</div>
     </div>
     <p class="brand-sub" style="text-align:center;">Console de gestion de zone</p>
     <div class="login-rz-info" id="loginRzInfo"></div>
@@ -348,7 +387,22 @@
     <div class="login-err" id="ptErr"></div>
     <div class="pt-ok" id="ptOk"></div>
     <button class="btn btn-finger" id="ptFingerBtn" onclick="pointerParEmpreinte()" style="display:none;">☝ Pointer par empreinte</button>
-    <div class="pt-sep" id="ptSep" style="display:none;">— ou par code —</div>
+    <div class="pt-sep" id="ptSep" style="display:none;">— ou —</div>
+    <div class="pt-photo-toggle">
+      <button class="btn btn-ghost btn-sm" onclick="togglePtPhotoGrid()" id="ptPhotoToggleBtn">👥 Pointer en touchant sa photo</button>
+    </div>
+    <div id="ptPhotoPanel" style="display:none;">
+      <div class="pt-sort-row">
+        <label>Trier par :</label>
+        <select id="ptSort" onchange="renderPtPhotoGrid()">
+          <option value="nom">Nom (A→Z)</option>
+          <option value="role">Rôle</option>
+          <option value="statut">Présents en premier</option>
+        </select>
+      </div>
+      <div class="pt-photo-grid" id="ptPhotoGrid"></div>
+    </div>
+    <div class="pt-sep">— ou par code —</div>
     <div class="field"><label>Code de pointage (ou code d'accès)</label>
       <input type="text" id="ptCode" placeholder="ex : 4527 ou AG-0001" autocomplete="off" autocapitalize="off"></div>
     <div class="field"><label>Mot de passe <span style="font-weight:400;color:var(--ink-soft);">(inutile avec un code de pointage)</span></label>
@@ -366,7 +420,7 @@
     <div class="side-brand">
       <div class="brand-mark">MO</div>
       <div>
-        <div class="side-brand-text" id="sideBrandText">Maison Orange</div>
+        <div class="side-brand-text" id="sideBrandText">Eight Huit</div>
         <div class="side-role" id="sideRoleLabel">—</div>
       </div>
     </div>
@@ -628,6 +682,43 @@ function drawDoughnut(canvasId, labels, data, colors, labelText){
     }
   });
 }
+/* ---------- Jauges circulaires colorées (style infographie) ----------
+   Une rangée de cercles avec pourcentage au centre, chacun dans une couleur
+   vive différente — pour un tableau de bord visuellement riche. */
+function gaugeRow(items){
+  /* items: [{label, pct, color}] — pct de 0 à 100 */
+  const R = 34, C = 2*Math.PI*R;
+  return `<div class="gauge-row">
+    ${items.map(it=>{
+      const off = C - (Math.max(0,Math.min(100,it.pct))/100)*C;
+      return `<div class="gauge-item">
+        <svg viewBox="0 0 84 84" class="gauge-svg">
+          <circle cx="42" cy="42" r="${R}" fill="none" stroke="#EEE9E2" stroke-width="8"/>
+          <circle cx="42" cy="42" r="${R}" fill="none" stroke="${it.color}" stroke-width="8"
+            stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"
+            transform="rotate(-90 42 42)"/>
+          <text x="42" y="47" text-anchor="middle" font-family="Space Grotesk,sans-serif" font-weight="700" font-size="17" fill="${it.color}">${Math.round(it.pct)}%</text>
+        </svg>
+        <div class="gauge-label">${escapeHtml(it.label)}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+/* Mini-histogramme dégradé multicolore (façon infographie), sans Chart.js —
+   utile pour les cartes compactes du tableau de bord. */
+function miniBarRow(items){
+  /* items: [{label, value, max, color}] */
+  return `<div class="minibar-row">
+    ${items.map(it=>{
+      const h = it.max? Math.max(4, Math.round((it.value/it.max)*72)) : 4;
+      return `<div class="minibar-item">
+        <div class="minibar-track"><div class="minibar-fill" style="height:${h}px;background:${it.color};"></div></div>
+        <div class="minibar-val">${Number(it.value).toLocaleString('fr-FR')}</div>
+        <div class="minibar-label">${escapeHtml(it.label)}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
 function unitFor(type){
   if(type==='lp') return 'présences';
   if(type==='sim') return 'SIM';
@@ -784,11 +875,16 @@ function renderObjectifsGlobal(){
     const gerants = DB.users.filter(u=>u.role==='gerant');
     main.innerHTML = `
       <div class="topbar"><div><h1>🎯 Objectifs</h1><p>Définissez les objectifs mensuels des superviseurs et des gérants — visibles automatiquement chez eux.</p></div></div>
-      <div class="tabs">
-        <button class="tab-btn active" data-otab="sup" onclick="switchObjTab('sup')">Superviseurs</button>
-        <button class="tab-btn" data-otab="ger" onclick="switchObjTab('ger')">Gérants</button>
+      <div class="tabgroup">
+        <div class="tabgroup-head"><h3>Objectifs par rôle</h3></div>
+        <div class="tabgroup-body">
+          <div class="tabs">
+            <button class="tab-btn active" data-otab="sup" onclick="switchObjTab('sup')">Superviseurs</button>
+            <button class="tab-btn" data-otab="ger" onclick="switchObjTab('ger')">Gérants</button>
+          </div>
+          <div id="objTabWrap">${objSupView(superviseurs, ym, moisLabel)}</div>
+        </div>
       </div>
-      <div id="objTabWrap">${objSupView(superviseurs, ym, moisLabel)}</div>
     `;
     return;
   }
@@ -969,7 +1065,7 @@ function exportToExcel(rows, filename, sheetName){
 function exportToPDF(title, subtitle, headers, rows){
   const win = window.open('', '_blank');
   const s = DB.settings || {};
-  const nomZone = s.nomZone || 'Maison Orange';
+  const nomZone = s.nomZone || 'Eight Huit';
   const rz = DB.users.find(u=>u.role==='responsable_zone' && u.active);
   const coordonnees = [
     s.adresse || '',
@@ -1049,8 +1145,8 @@ function exportToPDF(title, subtitle, headers, rows){
 function ensureDefaults(){
   if(!DB.objectifs) DB.objectifs={};
   if(!DB.objectifsSup) DB.objectifsSup={};
-  if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Maison Orange',adresse:'',contactTel:'',contactEmail:'',customThemes:[]};
-  if(!DB.settings.nomZone) DB.settings.nomZone='Maison Orange';
+  if(!DB.settings) DB.settings={logo:null,themeId:'orange',nomZone:'Eight Huit',adresse:'',contactTel:'',contactEmail:'',customThemes:[]};
+  if(!DB.settings.nomZone) DB.settings.nomZone='Eight Huit';
   if(!Array.isArray(DB.settings.customThemes)) DB.settings.customThemes=[];
   if(!Array.isArray(DB.om)) DB.om=[];
   if(!Array.isArray(DB.pointages)) DB.pointages=[];
@@ -1161,6 +1257,47 @@ async function pointerParCode(){
   if(!u){ ptMsg('err','Code de pointage inconnu, ou code d\'accès / mot de passe invalide.'); return; }
   await registerPointage(u, 'code');
 }
+function togglePtPhotoGrid(){
+  const panel = document.getElementById('ptPhotoPanel');
+  const show = panel.style.display==='none';
+  panel.style.display = show ? 'block' : 'none';
+  document.getElementById('ptPhotoToggleBtn').textContent = show ? '👥 Masquer les photos' : '👥 Pointer en touchant sa photo';
+  if(show) renderPtPhotoGrid();
+}
+function renderPtPhotoGrid(){
+  const grid = document.getElementById('ptPhotoGrid');
+  if(!grid) return;
+  const today = todayStr();
+  const sortMode = document.getElementById('ptSort')?.value || 'nom';
+  let staff = DB.users.filter(u=>u.active);
+  const statutOf = u=>{
+    const p = DB.pointages.find(x=>x.userId===u.id && x.date===today);
+    if(!p) return 'absent';
+    return p.sortie ? 'sorti' : 'present';
+  };
+  if(sortMode==='nom') staff.sort((a,b)=>(a.prenom+a.nom).localeCompare(b.prenom+b.nom));
+  else if(sortMode==='role') staff.sort((a,b)=> roleOrder(a.role)-roleOrder(b.role) || a.prenom.localeCompare(b.prenom));
+  else if(sortMode==='statut'){
+    const ordre = {present:0, absent:1, sorti:2};
+    staff.sort((a,b)=> ordre[statutOf(a)]-ordre[statutOf(b)] || a.prenom.localeCompare(b.prenom));
+  }
+  grid.innerHTML = staff.map(u=>{
+    const st = statutOf(u);
+    return `<button type="button" class="pt-photo-tile ${st}" onclick="pointerParPhoto('${u.id}')" title="${escapeHtml(u.prenom+' '+u.nom)}">
+      <img src="${u.photo || defaultAvatar()}">
+      <span class="pt-tile-dot"></span>
+      <span class="pt-tile-name">${escapeHtml(u.prenom)}</span>
+    </button>`;
+  }).join('') || '<div class="muted" style="grid-column:1/-1;text-align:center;padding:10px;font-size:12px;">Aucun membre actif.</div>';
+}
+function roleOrder(r){ return {responsable_zone:0, superviseur:1, gerant:2, agent:3}[r] ?? 9; }
+async function pointerParPhoto(userId){
+  const u = DB.users.find(x=>x.id===userId && x.active);
+  if(!u){ ptMsg('err','Compte introuvable ou suspendu.'); return; }
+  await registerPointage(u, 'photo');
+  renderPtPhotoGrid();
+}
+
 /* ---------- Empreinte digitale (WebAuthn, liée à CET appareil) ----------
    Le responsable configure l'empreinte de chaque employé sur le téléphone
    de celui-ci. L'association empreinte ↔ employé est stockée sur l'appareil. */
@@ -1199,7 +1336,7 @@ async function openConfigEmpreinte(){
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const cred = await navigator.credentials.create({ publicKey:{
       challenge,
-      rp: { name: 'Pointage '+(DB.settings.nomZone||'Maison Orange') },
+      rp: { name: 'Pointage '+(DB.settings.nomZone||'Eight Huit') },
       user: { id: new TextEncoder().encode(emp.id), name: emp.code, displayName: emp.prenom+' '+emp.nom },
       pubKeyCredParams: [{type:'public-key', alg:-7},{type:'public-key', alg:-257}],
       authenticatorSelection: { authenticatorAttachment:'platform', userVerification:'required' },
@@ -1271,7 +1408,7 @@ function renderPointage(){
             <td><span class="badge badge-orange">${roleLabel(u.role)||'—'}</span></td>
             <td class="mono">${p.entree||'—'}</td>
             <td class="mono">${p.sortie||'<span class="badge badge-warn">En poste</span>'}</td>
-            <td class="muted">${p.methodeIn==='empreinte'?'☝ Empreinte':'Code'}${p.methodeOut? ' / '+(p.methodeOut==='empreinte'?'☝':'code'):''}</td>
+            <td class="muted">${methodeLabel(p.methodeIn)}${p.methodeOut? ' / '+methodeLabel(p.methodeOut):''}</td>
           </tr>`;
         }).join('')}
         </tbody></table>`}
@@ -1326,11 +1463,12 @@ async function genererCodesPointage(){
   toast(n+' code(s) de pointage généré(s)');
   render();
 }
+function methodeLabel(m){ return {empreinte:'☝ Empreinte', photo:'📷 Photo', code:'Code'}[m] || (m||'—'); }
 function pointageRowsFor(date){
   const rows = [['Employé','Code','Rôle','Entrée','Sortie','Méthode']];
   DB.pointages.filter(p=>p.date===date).forEach(p=>{
     const u = DB.users.find(x=>x.id===p.userId) || {prenom:'?',nom:'',code:'—',role:''};
-    rows.push([u.prenom+' '+u.nom, u.code, roleLabel(u.role)||'—', p.entree||'—', p.sortie||'—', (p.methodeIn||'')+(p.methodeOut?' / '+p.methodeOut:'')]);
+    rows.push([u.prenom+' '+u.nom, u.code, roleLabel(u.role)||'—', p.entree||'—', p.sortie||'—', methodeLabel(p.methodeIn)+(p.methodeOut?' / '+methodeLabel(p.methodeOut):'')]);
   });
   return rows;
 }
@@ -1343,14 +1481,6 @@ function exportPointageExcel(){
   const date = window._ptViewDate || todayStr();
   exportToExcel(pointageRowsFor(date), 'pointage-'+date, 'Pointage');
 }
-
-/* ---------- Panneaux repliables : clic sur le titre d'un panneau ---------- */
-document.addEventListener('click', function(e){
-  const h = e.target.closest('.panel-head h2');
-  if(!h) return;
-  const panel = h.closest('.panel');
-  if(panel) panel.classList.toggle('folded');
-});
 
 /* ---------- ANTI DOUBLE-CLIC ----------
    Un seul clic suffit : dès qu'un bouton d'action est cliqué, il est
@@ -1390,7 +1520,7 @@ function seedDB(){
     settings: {
       logo: null,
       themeId: 'orange',
-      nomZone: 'Maison Orange',
+      nomZone: 'Eight Huit',
       adresse: '',
       contactTel: '',
       contactEmail: ''
@@ -1614,6 +1744,32 @@ function render(){
   main.innerHTML='';
   (renderers[currentView] || renderDashboard)();
   attachExportToolbar();
+  initPanelFolding();
+}
+
+/* ---------- Panneaux repliables ----------
+   Un bouton ▾ est ajouté sur chaque panneau ; cliquer dessus (ou sur toute
+   la tête du panneau, hors boutons et champs) replie / déplie le contenu. */
+function initPanelFolding(){
+  document.querySelectorAll('.panel, .tabgroup').forEach(p=>{
+    const head = Array.from(p.children).find(c=>c.classList && (c.classList.contains('panel-head')||c.classList.contains('tabgroup-head')));
+    if(!head || head.dataset.foldReady) return;
+    head.dataset.foldReady = '1';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fold-btn';
+    btn.title = 'Replier / déplier';
+    btn.textContent = '▾';
+    head.appendChild(btn);
+    const sync = ()=>{ btn.textContent = p.classList.contains('folded') ? '▸' : '▾'; };
+    const toggle = ()=>{ p.classList.toggle('folded'); sync(); };
+    btn.addEventListener('click', ev=>{ ev.stopPropagation(); toggle(); });
+    head.addEventListener('click', ev=>{
+      if(ev.target.closest('button, input, select, textarea, a, label')) return;
+      toggle();
+    });
+    sync();
+  });
 }
 
 /* =========================================================================
@@ -1658,7 +1814,26 @@ function renderDashboard(){
       DB.sims.filter(s=>s.statut==='stock').length,
       DB.sims.filter(s=>s.statut!=='attribuee' && s.statut!=='stock').length
     ];
+    /* Taux d'atteinte des objectifs de la zone, ce mois-ci — jauges colorées façon infographie */
+    const gaugeColors = {ca:'#FF6600', om:'#1F8A4C', sim:'#8E44AD'};
+    const objGauges = OBJ_TYPES.map(t=>{
+      const objectif = gerants.reduce((a,g)=>a+getObjectif(t,g.id,ymNow),0);
+      const realise = gerants.reduce((a,g)=>a+computeMonthTotal(t,g.id,ymNow),0);
+      const pct = objectif>0 ? (realise/objectif*100) : 0;
+      return { label: typeFullLabel(t)+' ('+typeLabel(t)+')', pct, color: gaugeColors[t] };
+    });
     extraHtml = `
+      <div class="grid-2">
+        <div class="panel"><div class="panel-head"><h2>🎯 Objectifs du mois — taux d'atteinte</h2></div>
+          <div class="panel-body">${gaugeRow(objGauges)}</div></div>
+        <div class="panel"><div class="panel-head"><h2>👥 Répartition du personnel</h2></div>
+          <div class="panel-body">${miniBarRow([
+            {label:'Superviseurs', value:superviseurs.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#E8A200'},
+            {label:'Gérants', value:gerants.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#1F8A4C'},
+            {label:'Agents', value:agents.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length), color:'#FF6600'},
+            {label:'PDV', value:DB.pdvs.length, max:Math.max(1,superviseurs.length,gerants.length,agents.length,DB.pdvs.length), color:'#8E44AD'},
+          ])}</div></div>
+      </div>
       <div class="grid-2">
         <div class="panel"><div class="panel-head"><h2>📈 Tendance du CA — 30 derniers jours</h2></div>
           <div class="panel-body"><div class="chart-wrap"><canvas id="dash_trend"></canvas></div></div></div>
@@ -1780,15 +1955,20 @@ function renderSettings(){
   const main = document.getElementById('mainContent');
   main.innerHTML = `
     <div class="topbar"><div><h1>⚙ Paramètres</h1><p>Logo, thème, coordonnées de la zone, et gestion centralisée du personnel.</p></div></div>
-    <div class="settings-tabs">
-      <button class="tab-btn active" data-stab="identite" onclick="switchSettingsTab('identite')">Identité & thème</button>
-      <button class="tab-btn" data-stab="contacts" onclick="switchSettingsTab('contacts')">Adresse & contacts</button>
-      <button class="tab-btn" data-stab="creation" onclick="switchSettingsTab('creation')">Créer du personnel</button>
-      <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des gérants</button>
-      <button class="tab-btn" data-stab="acces" onclick="switchSettingsTab('acces')">Codes d'accès</button>
-      <button class="tab-btn" data-stab="autorisations" onclick="switchSettingsTab('autorisations')">Autorisations</button>
+    <div class="tabgroup">
+      <div class="tabgroup-head"><h3>Réglages</h3></div>
+      <div class="tabgroup-body">
+        <div class="settings-tabs">
+          <button class="tab-btn active" data-stab="identite" onclick="switchSettingsTab('identite')">Identité & thème</button>
+          <button class="tab-btn" data-stab="contacts" onclick="switchSettingsTab('contacts')">Adresse & contacts</button>
+          <button class="tab-btn" data-stab="creation" onclick="switchSettingsTab('creation')">Créer du personnel</button>
+          <button class="tab-btn" data-stab="codes" onclick="switchSettingsTab('codes')">Codes des gérants</button>
+          <button class="tab-btn" data-stab="acces" onclick="switchSettingsTab('acces')">Codes d'accès</button>
+          <button class="tab-btn" data-stab="autorisations" onclick="switchSettingsTab('autorisations')">Autorisations</button>
+        </div>
+        <div id="settingsTabWrap">${settingsIdentiteView()}</div>
+      </div>
     </div>
-    <div id="settingsTabWrap">${settingsIdentiteView()}</div>
   `;
 }
 function switchSettingsTab(tab){
@@ -1804,7 +1984,7 @@ function settingsIdentiteView(){
       <div class="panel-head"><h2>Identité de Eight Huit</h2></div>
       <div class="panel-body">
         <div class="field"><label>Nom affiché de l'organisation</label>
-          <input type="text" id="set_nomzone" value="${escapeHtml(DB.settings.nomZone||'Maison Orange')}"></div>
+          <input type="text" id="set_nomzone" value="${escapeHtml(DB.settings.nomZone||'Eight Huit')}"></div>
         <div class="logo-upload-wrap">
           <img id="settings_logo_preview" class="logo-preview" src="${DB.settings.logo || defaultAvatar()}">
           <input type="file" id="settings_logo_file" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this,'settings_logo_preview')">
@@ -1889,7 +2069,7 @@ async function deleteCustomTheme(themeId){
   render();
 }
 async function saveLogo(){
-  DB.settings.nomZone = document.getElementById('set_nomzone').value.trim() || 'Maison Orange';
+  DB.settings.nomZone = document.getElementById('set_nomzone').value.trim() || 'Eight Huit';
   const img = document.getElementById('settings_logo_preview');
   if(img && img.src.startsWith('data:image') && !img.src.includes('svg+xml')){
     DB.settings.logo = img.src;
@@ -2019,7 +2199,7 @@ function applyBranding(){
     if(DB.settings.logo){ m.innerHTML = `<img src="${DB.settings.logo}" alt="Logo">`; }
     else { m.innerHTML = `<img src="${EH_LOGO}" alt="EIGHT HUIT" style="background:#fff;">`; }
   });
-  const nom = DB.settings.nomZone || 'Maison Orange';
+  const nom = DB.settings.nomZone || 'Eight Huit';
   const loginName = document.getElementById('loginBrandName');
   if(loginName) loginName.textContent = nom;
   const sideName = document.getElementById('sideBrandText');
@@ -2070,11 +2250,16 @@ function renderPersonnel(){
       ['Agents', agents.length, ''],
     ])}
 
-    <div class="tabs">
-      <button class="tab-btn active" data-ptab="liste" onclick="switchPersonnelTab('liste')">Liste</button>
-      <button class="tab-btn" data-ptab="organigramme" onclick="switchPersonnelTab('organigramme')">Organigramme</button>
+    <div class="tabgroup">
+      <div class="tabgroup-head"><h3>Personnel</h3></div>
+      <div class="tabgroup-body">
+        <div class="tabs">
+          <button class="tab-btn active" data-ptab="liste" onclick="switchPersonnelTab('liste')">Liste</button>
+          <button class="tab-btn" data-ptab="organigramme" onclick="switchPersonnelTab('organigramme')">Organigramme</button>
+        </div>
+        <div id="personnelTabWrap">${personnelListView(supers, agents, gerants)}</div>
+      </div>
     </div>
-    <div id="personnelTabWrap">${personnelListView(supers, agents, gerants)}</div>
   `;
 }
 
@@ -3331,12 +3516,17 @@ function renderDaily(){
   // Responsable de zone : filtre journalier + mensuel
   main.innerHTML = `
     <div class="topbar"><div><h1>Activité journalière des gérants</h1><p>Vue complète : jour, mois, ou historique intégral — à des fins de rapport et de vérification.</p></div></div>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="day" onclick="switchDailyTab('day')">Aujourd'hui</button>
-      <button class="tab-btn" data-tab="month" onclick="switchDailyTab('month')">Ce mois</button>
-      <button class="tab-btn" data-tab="all" onclick="switchDailyTab('all')">Historique complet</button>
+    <div class="tabgroup">
+      <div class="tabgroup-head"><h3>Filtrer la période</h3></div>
+      <div class="tabgroup-body">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="day" onclick="switchDailyTab('day')">Aujourd'hui</button>
+          <button class="tab-btn" data-tab="month" onclick="switchDailyTab('month')">Ce mois</button>
+          <button class="tab-btn" data-tab="all" onclick="switchDailyTab('all')">Historique complet</button>
+        </div>
+        <div class="panel"><div class="panel-body" id="dailyTableWrap">${logTable(dailyFiltered('day'))}</div></div>
+      </div>
     </div>
-    <div class="panel"><div class="panel-body" id="dailyTableWrap">${logTable(dailyFiltered('day'))}</div></div>
   `;
 }
 function dailyFiltered(mode){
@@ -3416,13 +3606,18 @@ function renderReports(){
       </div>
     </div>
 
-    <div class="tabs">
-      <button class="tab-btn active" data-rtab="liste" onclick="switchReportsTab('liste')">Rapports générés</button>
-      <button class="tab-btn" data-rtab="comparer" onclick="switchReportsTab('comparer')">Comparer deux périodes</button>
-    </div>
-    <div id="reportsTabWrap">
-      <div class="panel"><div class="panel-head"><h2>Rapports générés</h2></div>
-        <div class="panel-body" id="reportsListWrap">${reportsList()}</div>
+    <div class="tabgroup">
+      <div class="tabgroup-head"><h3>Rapports</h3></div>
+      <div class="tabgroup-body">
+        <div class="tabs">
+          <button class="tab-btn active" data-rtab="liste" onclick="switchReportsTab('liste')">Rapports générés</button>
+          <button class="tab-btn" data-rtab="comparer" onclick="switchReportsTab('comparer')">Comparer deux périodes</button>
+        </div>
+        <div id="reportsTabWrap">
+          <div class="panel"><div class="panel-head"><h2>Rapports générés</h2></div>
+            <div class="panel-body" id="reportsListWrap">${reportsList()}</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -3543,12 +3738,27 @@ function openReportChart(id){
   const {start,end} = periodDateRange(r.periode);
   const gerantIds = DB.users.filter(u=>u.role==='gerant').map(g=>g.id);
   const dist = totalsByGerant('ca', gerantIds, d=> d>=start && d<=end);
-  document.getElementById('modalTitle').textContent = `CA par gérant — ${periodeLabel(r.periode)}`;
-  document.getElementById('modalBody').innerHTML = dist.data.every(v=>v===0)
-    ? emptyState('Aucune donnée', 'Aucun CA déclaré sur cette période.')
-    : `<div class="chart-wrap"><canvas id="chart_report_dist"></canvas></div>`;
+  const total = r.stats.superviseurs+r.stats.gerants+r.stats.agents;
+  document.getElementById('modalTitle').textContent = `Rapport ${r.type} — ${periodeLabel(r.periode)}`;
+  document.getElementById('modalBody').innerHTML = `
+    ${gaugeRow([
+      { label:'CA (part du total)', pct: r.stats.caTotal>0?100:0, color:'#FF6600' },
+      { label:'SIM attribuées', pct: r.stats.simsTotal>0 ? Math.min(100, r.stats.simsTotal/Math.max(1,DB.sims.length)*100) : 0, color:'#1F8A4C' },
+      { label:'PDV avec gérant', pct: DB.pdvs.length? DB.pdvs.filter(p=>p.gerantId).length/DB.pdvs.length*100 : 0, color:'#8E44AD' },
+    ])}
+    <div class="grid-2" style="margin-top:10px;">
+      <div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">Répartition du personnel</div>
+        <div class="chart-wrap" style="height:180px;">${total===0? emptyState('Aucune donnée','—') : '<canvas id="chart_report_roles"></canvas>'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);margin-bottom:8px;">CA par gérant — ${escapeHtml(periodeLabel(r.periode))}</div>
+        <div class="chart-wrap" style="height:180px;">${dist.data.every(v=>v===0) ? emptyState('Aucune donnée', 'Aucun CA déclaré.') : '<canvas id="chart_report_dist"></canvas>'}</div>
+      </div>
+    </div>`;
   document.getElementById('modalFoot').innerHTML = `<button class="btn btn-ghost btn-sm" onclick="closeModal()">Fermer</button>`;
   openModal();
+  if(total>0) drawDoughnut('chart_report_roles', ['Superviseurs','Gérants','Agents'], [r.stats.superviseurs,r.stats.gerants,r.stats.agents], ['#E8A200','#1F8A4C','#FF6600'], 'Personnel');
   if(!dist.data.every(v=>v===0)) drawChart('chart_report_dist','bar', dist.labels, dist.data, '#FF6600', 'CA (GNF)');
 }
 function reportRows(r){
@@ -3604,6 +3814,7 @@ function computeStatsForPeriod(periode){
   const inRange = d => d>=start && d<=end;
   return {
     caTotal: DB.ca.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
+    omTotal: DB.om.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
     tdrTotal: DB.tdr.filter(e=>inRange(e.date)).length,
     tdaTotal: DB.tda.filter(e=>inRange(e.date)).length,
     lpTotal: DB.lp.filter(e=>inRange(e.date)).reduce((a,e)=>a+Number(e.montant||0),0),
@@ -3627,14 +3838,15 @@ function periodeLabel(periode){
 /* =========================================================================
    IMPRESSION PDF (A4) & EXPORT JPEG — disponibles sur chaque écran
    ========================================================================= */
-let printMeta = { title:'Maison Orange', subtitle:'' };
+let printMeta = { title:'', subtitle:'' };
 
 function updatePrintMeta(){
   const topbar = document.querySelector('#mainContent .topbar');
-  if(!topbar) return;
+  const nomZone = (DB.settings && DB.settings.nomZone) || 'Eight Huit';
+  if(!topbar){ printMeta.title = nomZone; printMeta.subtitle=''; return; }
   const h1 = topbar.querySelector('h1');
   const p = topbar.querySelector('p');
-  printMeta.title = h1 ? h1.textContent : 'Maison Orange';
+  printMeta.title = h1 ? h1.textContent : nomZone;
   printMeta.subtitle = p ? p.textContent : '';
 }
 
@@ -3682,17 +3894,31 @@ function printCurrentPage(){
   const clone = buildPrintableClone();
   const win = window.open('', '_blank');
   if(!win){ toast('Autorisez les fenêtres popup pour imprimer'); return; }
-  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(printMeta.title)} — Maison Orange</title>
+  const nomZone = (DB.settings && DB.settings.nomZone) || 'Eight Huit';
+  const rz = DB.users.find(u=>u.role==='responsable_zone' && u.active);
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>${escapeHtml(printMeta.title)} — ${escapeHtml(nomZone)}</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     @page{ size:A4; margin:16mm 14mm; }
-    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing:border-box; }
-    body{ font-family:'Inter',Arial,sans-serif; color:#1B1B1F; margin:0; -webkit-font-smoothing:antialiased; }
-    .print-header{ display:flex; justify-content:space-between; align-items:flex-end; border-bottom:3px solid #FF6600; padding-bottom:10px; margin-bottom:20px; }
-    .print-brand{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; color:#D14E00; letter-spacing:.04em; text-transform:uppercase; }
-    .print-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:21px; margin:3px 0 3px; color:#1B1B1F; }
-    .print-sub{ font-size:11.5px; color:#555; }
-    .print-meta{ text-align:right; font-size:10px; color:#888; font-family:'IBM Plex Mono',monospace; line-height:1.6; }
+    /* Impression fidèle : couleurs et images exactement comme à l'écran, sans altération */
+    *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; box-sizing:border-box; }
+    img{ image-rendering:-webkit-optimize-contrast; }
+    body{ font-family:'Inter',Arial,sans-serif; color:#1B1B1F; margin:0; -webkit-font-smoothing:antialiased; position:relative; }
+    body::before{
+      content:''; position:fixed; top:0; left:0; right:0; bottom:0;
+      background:url("${EH_LOGO}") center / 380px no-repeat; opacity:.055; z-index:-1;
+    }
+    .print-header{ display:flex; align-items:center; gap:14px; border-bottom:4px solid #1F8A4C; padding-bottom:12px; margin-bottom:20px; }
+    .print-header img.print-logo{ width:64px; height:64px; object-fit:contain; flex-shrink:0; }
+    .print-header-org{ flex:1; }
+    .print-brand{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; letter-spacing:.01em; }
+    .print-brand .r{color:#D92B2B;} .print-brand .y{color:#E8A200;} .print-brand .g{color:#1F8A4C;}
+    .print-zone{ font-size:11.5px; font-weight:700; color:#0F5132; margin-top:2px; }
+    .print-title{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:19px; margin:5px 0 3px; color:#1B1B1F; text-transform:uppercase; letter-spacing:.02em; }
+    .print-sub{ font-size:11.5px; color:#33383D; }
+    .print-meta{ text-align:right; font-size:10px; color:#4A4A52; font-family:'IBM Plex Mono',monospace; line-height:1.6; flex-shrink:0; }
+    .print-tri{ height:4px; display:flex; margin:-1px 0 18px; }
+    .print-tri span{flex:1;} .print-tri .r{background:#D92B2B;} .print-tri .y{background:#E8A200;} .print-tri .g{background:#1F8A4C;}
     .topbar{ display:none; }
     .grid-cards{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
     .stat-card{ border:1px solid #E7E3DD; border-radius:5px; padding:10px 12px; break-inside:avoid; position:relative; padding-left:14px; }
@@ -3705,7 +3931,8 @@ function printCurrentPage(){
     .panel-head h2{ font-family:'Space Grotesk',sans-serif; font-size:13px; margin:0; color:#1B1B1F; }
     .panel-body{ padding:10px 12px; }
     table{ width:100%; border-collapse:collapse; font-size:10.5px; }
-    th{ background:#FFE9D9; color:#7A2E00; text-align:left; padding:6px 8px; border-bottom:2px solid #FF6600; text-transform:uppercase; font-size:9px; letter-spacing:.03em; }
+    th{ background:#1F8A4C; color:#FFFFFF; text-align:left; padding:6px 8px; border:1px solid #146034; text-transform:uppercase; font-size:9px; letter-spacing:.03em; }
+    tbody tr:nth-child(even) td{ background:#F2F9F4; }
     td{ padding:6px 8px; border-bottom:1px solid #E7E3DD; color:#1B1B1F; }
     tr{ page-break-inside:avoid; }
     .badge{ display:inline-block; padding:1px 7px; border-radius:20px; font-size:9px; font-weight:700; text-transform:uppercase; }
@@ -3728,15 +3955,18 @@ function printCurrentPage(){
     .footer-note{ margin-top:24px; padding-top:10px; border-top:1px solid #E7E3DD; font-size:9px; color:#999; }
   </style></head><body>
   <div class="print-header">
-    <div>
-      <div class="print-brand">Maison Orange</div>
-      <div class="print-title">${escapeHtml(printMeta.title)}</div>
-      <div class="print-sub">${escapeHtml(printMeta.subtitle)}</div>
+    <img class="print-logo" src="${EH_LOGO}" alt="EIGHT HUIT">
+    <div class="print-header-org">
+      <div class="print-brand"><span class="r">EIGHT</span> <span class="y">HUIT</span> <span class="g">Technology</span></div>
+      <div class="print-zone">${escapeHtml(nomZone)}${rz ? ' — Responsable de zone : '+escapeHtml(rz.prenom+' '+rz.nom) : ''}</div>
     </div>
     <div class="print-meta">Généré le ${fmtDate(nowISO())}<br>Par ${escapeHtml(SESSION.prenom+' '+SESSION.nom)}<br>${escapeHtml(roleLabel(SESSION.role))}</div>
   </div>
+  <div class="print-tri"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+  <div class="print-title">${escapeHtml(printMeta.title)}</div>
+  <div class="print-sub" style="margin-bottom:16px;">${escapeHtml(printMeta.subtitle)}</div>
   ${clone.innerHTML}
-  <div class="footer-note">Document généré automatiquement par la console de gestion Maison Orange, à des fins de suivi et de justification.</div>
+  <div class="footer-note"><b>${escapeHtml(nomZone)}</b> — document généré automatiquement par EIGHT HUIT Technology, à des fins de suivi et de justification.</div>
   <scr` + `ipt>window.onload=()=>setTimeout(()=>window.print(),300);</scr` + `ipt>
   </body></html>`;
   win.document.write(html);
